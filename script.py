@@ -3,7 +3,6 @@
 
 # TODO: Part 2: You know you should at least do basic analysis to get started, so you perform the following on the image:
 
-#   4.  Convert the normalized image back to RGB and save it.
 #   5.  You should now have 7 images.
 #   6.  Perform random affine transformations on each image (you should perform 14 total transformations - 2 for each image). Affine transformations can be translation, rotation, scaling, or shear as long as each is unique in either transformation type or transformation value (rotate 90 degrees vs rotate 186 degrees). No two images should be transformed in the exact same way. Save each of those images to new files.
 #   7.  You should now have 21 images.
@@ -121,14 +120,20 @@ write_file(PART2_DIR / hls_file, hls_img)
 
 #   3.  On the HSV converted image, normalize the lighting by performing histogram equalization across the V (value) channel.
 
-channels_cache = CACHE_DIR / f'channel_cache_{file_hash(IMG_NAME)}.npz'
+hsv_channels_cache = CACHE_DIR / f'hsv_channel_cache_{file_hash(PART2_DIR / hsv_file)}.npz'
 
-if channels_cache.is_file():
+if hsv_channels_cache.is_file():
     print(f'Retrieving channel data from cache')
-    channels = np.load(channels_cache)
-    b, g, r = channels["b"], channels["g"], channels["r"]
+    channels = np.load(hsv_channels_cache)
+    h, s, v = channels["h"], channels["s"], channels["v"]
 else:
-    print("Extracting channel data from the original image")
-    b, g, r = cv.split(img)
-    np.savez(channels_cache, b=b, g=g, r=r)
-h, s, v =
+    print("Extracting channel data from the image")
+    h, s, v = cv.split(hsv_img)
+    np.savez(hsv_channels_cache, h=h, s=s, v=v)
+
+norm_hsv = cv.merge([h, s, cv.equalizeHist(v)])
+
+#   4.  Convert the normalized image back to RGB and save it.
+norm_brg_file = "norm_brg_img.png"
+norm_brg = cv.cvtColor(norm_hsv, cv.COLOR_HSV2RGB)
+write_file(PART2_DIR / norm_brg_file, norm_brg)
