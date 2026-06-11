@@ -1,22 +1,12 @@
 # TODO : Create print statements for each step for terminal output and fix print formatting for readability
 # TODO: Save terminal output to file in results
 # TODO: Add gaussian blur discussion to README
-
-# TODO: Part 3: You decide that detecting the edges of the unknown figure would be useful, so you do the following:
-#   1.  Randomly create 4 equally sized subsets of the images from part 1.
-#     Each subset should have 42 images.
-#   2.  Choose a subset to use in the remaining steps.
-#   3.  You should now have 42 images.
-#   4.  Perform these edge detection techniques on that subset:
-#     a.  Sobel
-#     b.  Laplacian
-#     c.  Canny
-#     d.  Prewitt
-#   5.  Discuss the pros and cons of each edge detection technique and perform an analysis of which of these techniques works best for this image set.
+# TODO: Look at reading files from results rather than storing dict
+# TODO: Add 3.5 discussion to README: Discuss the pros and cons of each edge detection technique and perform an analysis of which of these techniques works best for this image set.
 #     Reminder – Canny may be the most used and applied, but it may not be the best in your case. Make sure your analysis fits your results.
-#   6.  Save each image before and after adding edges with each technique.
-#   7.  You should now have 210 images.
-#   8.  Create 42, 5-image plots of the input image (from the start of part 3) next to the edge-detected images and output 6 random plots to add to the readme. Include information on what processing techniques were used on the images.
+
+
+# TODO: Part 3: You decide that detecting the edges of the unknown figure would be useful, so you do the following
 
 import numpy as np
 import cv2 as cv
@@ -219,15 +209,18 @@ for name, image in images.items():
 
 sigmas = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)
 base_images = images | transformed_images
+blur_images = {}
 
 for name, image in base_images.items():
 
     print(f'\nPerforming Gaussian blur on {name}')
 
     for sigma in sigmas:
-        blur = cv.GaussianBlur(image,(5,5),sigma)
+        blur = cv.GaussianBlur(image,(7,7),sigma)
         blur_name = f'{name}_blur_{sigma}'
         blur_file = f'{blur_name}.png'
+
+        blur_images[blur_name] = blur
 
         print(f'\tGaussian blur complete using sigma value {sigma}')
 
@@ -236,3 +229,45 @@ for name, image in base_images.items():
 #   9.  You should now have 168 images.
 
 count_files(PART2_DIR)
+
+# Part 3: You decide that detecting the edges of the unknown figure would be useful, so you do the following:
+
+#   1.  Randomly create 4 equally sized subsets of the images from part 1.
+#     Each subset should have 42 images.
+
+all_images = base_images | blur_images
+
+all_image_names = list(all_images.keys())
+
+random.shuffle(all_image_names)
+
+group1 = all_image_names[:42]
+del all_image_names[:42]
+
+group2 = all_image_names[:42]
+del all_image_names[:42]
+
+group3 = all_image_names[:42]
+del all_image_names[:42]
+
+group4 = all_image_names
+
+#   2.  Choose a subset to use in the remaining steps.
+
+group_num = random.randint(0,3) + 1
+
+#   3.  You should now have 42 images.
+
+#   4.  Perform these edge detection techniques on that subset:
+#     a.  Sobel
+#     b.  Laplacian
+#     c.  Canny
+#     d.  Prewitt
+
+
+#   5.  Discuss the pros and cons of each edge detection technique and perform an analysis of which of these techniques works best for this image set.
+#     Reminder – Canny may be the most used and applied, but it may not be the best in your case. Make sure your analysis fits your results.
+
+#   6.  Save each image before and after adding edges with each technique.
+#   7.  You should now have 210 images.
+#   8.  Create 42, 5-image plots of the input image (from the start of part 3) next to the edge-detected images and output 6 random plots to add to the readme. Include information on what processing techniques were used on the images.
