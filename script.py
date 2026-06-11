@@ -1,9 +1,6 @@
-# TODO : Create print statements for each step for terminal output
+# TODO : Create print statements for each step for terminal output and fix print formatting for readability
 # TODO: Save terminal output to file in results
 # TODO: Add gaussian blur discussion to README
-
-# TODO: Part 2: You know you should at least do basic analysis to get started, so you perform the following on the image:
-
 
 # TODO: Part 3: You decide that detecting the edges of the unknown figure would be useful, so you do the following:
 #   1.  Randomly create 4 equally sized subsets of the images from part 1.
@@ -51,6 +48,12 @@ def file_hash(path):
 def write_file(path, img):
     if cv.imwrite(path, img):
         print(f'\nSaved image as {path.name}')
+
+def count_files(path):
+
+    file_count = sum(1 for item in path.iterdir() if item.is_file())
+
+    print(f'Total files in {path.name}: {file_count}')
 
 # Part 2: You know you should at least do basic analysis to get started, so you perform the following on the image:
 
@@ -152,6 +155,8 @@ images = {
     "norm_brg": norm_brg
 }
 
+transformed_images = {}
+
 for name, image in images.items():
 
     # Two transforms per image
@@ -189,9 +194,10 @@ for name, image in images.items():
             M[1, 2] += ty
 
         transformed = cv.warpAffine(image, M, (width, height), borderMode=cv.BORDER_REFLECT)
-        transformed_file = f'{name}_transformed_{i+1}.png'
+        transformed_name = f'{name}_transformed_{i+1}'
+        transformed_file = f'{transformed_name}.png'
 
-        write_file(PART2_DIR / transformed_file, transformed)
+        transformed_images[transformed_name] = transformed
 
         print(f'\nTransformation completed on {name}')
         print(f'\n  Image transformation specs:')
@@ -205,10 +211,28 @@ for name, image in images.items():
         else:
             print(f'    Image not translated')
 
+        write_file(PART2_DIR / transformed_file, transformed)
+
 #   7.  You should now have 21 images.
 
 #   8.  Apply a Gaussian blur to each image using the levels of sigma: 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5. Discuss how the level of sigma changes the image. Save each of those images to new files.
 
 sigmas = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)
+base_images = images | transformed_images
+
+for name, image in base_images.items():
+
+    print(f'\nPerforming Gaussian blur on {name}')
+
+    for sigma in sigmas:
+        blur = cv.GaussianBlur(image,(5,5),sigma)
+        blur_name = f'{name}_blur_{sigma}'
+        blur_file = f'{blur_name}.png'
+
+        print(f'\tGaussian blur complete using sigma value {sigma}')
+
+        write_file(PART2_DIR / blur_file, blur)
 
 #   9.  You should now have 168 images.
+
+count_files(PART2_DIR)
