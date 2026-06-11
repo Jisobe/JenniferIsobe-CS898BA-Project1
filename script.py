@@ -1,13 +1,9 @@
 # TODO : Create print statements for each step for terminal output
 # TODO: Save terminal output to file in results
+# TODO: Add gaussian blur discussion to README
 
 # TODO: Part 2: You know you should at least do basic analysis to get started, so you perform the following on the image:
 
-#   5.  You should now have 7 images.
-#   6.  Perform random affine transformations on each image (you should perform 14 total transformations - 2 for each image). Affine transformations can be translation, rotation, scaling, or shear as long as each is unique in either transformation type or transformation value (rotate 90 degrees vs rotate 186 degrees). No two images should be transformed in the exact same way. Save each of those images to new files.
-#   7.  You should now have 21 images.
-#   8.  Apply a Gaussian blur to each image using the levels of sigma: 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5. Discuss how the level of sigma changes the image. Save each of those images to new files.
-#   9.  You should now have 168 images.
 
 # TODO: Part 3: You decide that detecting the edges of the unknown figure would be useful, so you do the following:
 #   1.  Randomly create 4 equally sized subsets of the images from part 1.
@@ -30,6 +26,7 @@ import cv2 as cv
 from pathlib import Path
 import hashlib
 from scipy import stats
+import random
 
 # Constant variables
 IMG_NAME = "original.png"
@@ -50,6 +47,10 @@ CACHE_DIR.mkdir(exist_ok=True)
 def file_hash(path):
     with open(path, "rb") as file:
         return hashlib.md5(file.read()).hexdigest()
+
+def write_file(path, img):
+    if cv.imwrite(path, img):
+        print(f'\nSaved image as {path.name}')
 
 # Part 2: You know you should at least do basic analysis to get started, so you perform the following on the image:
 
@@ -94,9 +95,8 @@ for name, channel in brg_channels.items():
 
 #   2.  Convert and save the image to greyscale, binary, and different color spaces (HSV, CIELAB, and HLS).
 
-def write_file(path, img):
-    if cv.imwrite(path, img):
-        print(f'Saved ')
+original_file = "original.png"
+write_file(PART2_DIR / original_file, img)
 
 grey_file = "grey_img.png"
 grey_img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
@@ -137,3 +137,78 @@ norm_hsv = cv.merge([h, s, cv.equalizeHist(v)])
 norm_brg_file = "norm_brg_img.png"
 norm_brg = cv.cvtColor(norm_hsv, cv.COLOR_HSV2RGB)
 write_file(PART2_DIR / norm_brg_file, norm_brg)
+
+# 5.  You should now have 7 images.
+
+#   6.  Perform random affine transformations on each image (you should perform 14 total transformations - 2 for each image). Affine transformations can be translation, rotation, scaling, or shear as long as each is unique in either transformation type or transformation value (rotate 90 degrees vs rotate 186 degrees). No two images should be transformed in the exact same way. Save each of those images to new files.
+
+images = {
+    "original": img,
+    "grey": grey_img,
+    "bin": bin_img,
+    "hsv": hsv_img,
+    "cielab": cielab_img,
+    "hls": hls_img,
+    "norm_brg": norm_brg
+}
+
+for name, image in images.items():
+
+    # Two transforms per image
+    for i in range(2):
+        # Get original image information
+        height, width = img.shape[:2]
+        center = (width / 2, height / 2)
+
+        # Determine what transformations will happen
+        do_rotate = bool(random.getrandbits(1))
+        do_scale = bool(random.getrandbits(1))
+        do_translate = bool(random.getrandbits(1))
+
+        # If none of the transformation were activated, force one
+        if not (do_rotate or do_scale or do_translate):
+            selected = random.randint(0,2)
+            print(selected)
+
+            if selected == 0:
+                do_rotate = True
+            if selected == 1:
+                do_scale = True
+            else:
+                do_translate = True
+
+        angle = random.uniform(-180, 180) if do_rotate else 0
+        scale = random.uniform(0.5, 1.2) if do_scale else 1
+
+        M = cv.getRotationMatrix2D(center, angle, scale)
+
+        if do_translate:
+            tx = random.uniform(-.1, .1) * width
+            ty = random.uniform(-.1, .1) * height
+            M[0, 2] += tx
+            M[1, 2] += ty
+
+        transformed = cv.warpAffine(image, M, (width, height), borderMode=cv.BORDER_REFLECT)
+        transformed_file = f'{name}_transformed_{i+1}.png'
+
+        write_file(PART2_DIR / transformed_file, transformed)
+
+        print(f'\nTransformation completed on {name}')
+        print(f'\n  Image transformation specs:')
+        print(f'    Original image height: {height}')
+        print(f'    Original image width: {width}')
+        print(f'    Transform angle: {angle}') if do_rotate else print("    Image not rotated")
+        print(f'    Transform scale: {scale}') if do_scale else print("    Image not scaled")
+        if do_translate:
+            print(f'    Translate tx: {tx}')
+            print(f'    Translate ty: {ty}')
+        else:
+            print(f'    Image not translated')
+
+#   7.  You should now have 21 images.
+
+#   8.  Apply a Gaussian blur to each image using the levels of sigma: 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5. Discuss how the level of sigma changes the image. Save each of those images to new files.
+
+sigmas = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)
+
+#   9.  You should now have 168 images.
