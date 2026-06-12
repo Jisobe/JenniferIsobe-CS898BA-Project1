@@ -25,6 +25,8 @@ README_PLOTS_DIR.mkdir(exist_ok=True)
 CACHE_DIR.mkdir(exist_ok=True)
 
 # Helper functions
+SEED = 42
+random.seed(SEED)
 
 def file_hash(path):
     with open(path, "rb") as file:
@@ -37,24 +39,29 @@ def count_files(path):
     file_count = sum(1 for item in path.iterdir() if item.is_file())
     print(f'Total files in {path.name}: {file_count}')
 
+def to_rgb_display(img):
+    if len(img.shape) == 2:
+        return cv.cvtColor(img, cv.COLOR_GRAY2RGB)
+    return cv.cvtColor(img, cv.COLOR_BGR2RGB)
+
 all_images = {}
 
 print("==================== Part 2: Basic Analysis ==================== ")
 
-print("Reading in image file")
+print("\n Reading in base image file")
 img = cv.imread(IMG_NAME)
 assert img is not None, f'Image file {IMG_NAME} could not be read, check file path.'
 
-print("1.  Find and print min, max, average, median, mode, skew, range, standard deviation, variance of the original image for each individual channel")
+print("\n 1.  Find and print min, max, average, median, mode, skew, range, standard deviation, variance of the original image for each individual channel")
 
 bgr_channels_cache = CACHE_DIR / f'bgr_channel_cache_{file_hash(IMG_NAME)}.npz'
 
 if bgr_channels_cache.is_file():
-    print(f'Retrieving channel data from cache')
+    print(f'\n Retrieving channel data from cache')
     channels = np.load(bgr_channels_cache)
     b, g, r = channels["b"], channels["g"], channels["r"]
 else:
-    print("Extracting channel data from the original image")
+    print("\n Extracting channel data from the original image")
     b, g, r = cv.split(img)
     np.savez(bgr_channels_cache, b=b, g=g, r=r)
 
@@ -68,7 +75,7 @@ for name, channel in brg_channels.items():
     flattened = channel.flatten()
     histogram = np.bincount(flattened, minlength=256)
     mode = np.argmax(histogram)
-    print(f'\nStatistics for the {name} channel:')
+    print(f'\n Statistics for the {name} channel:')
     print(f'    Min: {channel.min():.4f}')
     print(f'    Max: {channel.max():.4f}')
     print(f'    Average: {channel.mean():.4f}')
@@ -79,7 +86,7 @@ for name, channel in brg_channels.items():
     print(f'    Standard Deviation: {channel.std():.4f}')
     print(f'    Variance: {channel.var():.4f}')
 
-print("2.  Convert and save the image to greyscale, binary, HSV, CIELAB, and HLS.")
+print("\n 2.  Convert and save the image to greyscale, binary, HSV, CIELAB, and HLS.")
 
 original_file = "original.png"
 write_file(PART2_DIR / original_file, img)
@@ -107,7 +114,7 @@ all_images["grey"] = {
     "sigma": None}
 
 bin_file = "bin_img.png"
-threshold_val, bin_img = cv.threshold(grey_img, 127, 255, cv.THRESH_BINARY)
+threshold_val, bin_img = cv.threshold(grey_img, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
 write_file(PART2_DIR / bin_file, bin_img)
 all_images["bin"] = {
     "name": "Binary",
@@ -159,29 +166,29 @@ all_images["hls"] = {
     "sigma": None
 }
 
-print("3.  Normalize the lighting on the HSV by performing histogram equalization across the V (value) channel.")
+print("\n 3.  Normalize the lighting on the HSV by performing histogram equalization across the V (value) channel.")
 
 hsv_channels_cache = CACHE_DIR / f'hsv_channel_cache_{file_hash(PART2_DIR / hsv_file)}.npz'
 
 if hsv_channels_cache.is_file():
-    print(f'Retrieving channel data from cache')
+    print(f'\n  Retrieving channel data from cache')
     channels = np.load(hsv_channels_cache)
     h, s, v = channels["h"], channels["s"], channels["v"]
 else:
-    print("Extracting channel data from the image")
+    print("\n  Extracting channel data from the image")
     h, s, v = cv.split(hsv_img)
     np.savez(hsv_channels_cache, h=h, s=s, v=v)
 
 norm_hsv = cv.merge([h, s, cv.equalizeHist(v)])
 
-print("4.  Convert the normalized image back to RGB and save it.")
+print("\n 4.  Convert the normalized image back to RGB and save it.")
 
-norm_rgb_file = "norm_rgb_img.png"
-norm_rgb = cv.cvtColor(norm_hsv, cv.COLOR_HSV2RGB)
-write_file(PART2_DIR / norm_rgb_file, norm_rgb)
+norm_brg_file = "norm_brg_img.png"
+norm_brg = cv.cvtColor(norm_hsv, cv.COLOR_HSV2BGR)
+write_file(PART2_DIR / norm_brg_file, norm_brg)
 all_images["norm_rgb"] = {
     "name": "Normalized RGB",
-    "image" : norm_rgb,
+    "image" : norm_brg,
     "space": "RGB",
     "angle": 0,
     "scale": 1,
@@ -189,20 +196,17 @@ all_images["norm_rgb"] = {
     "ty": None,
     "sigma": None}
 
-print("5. Check for 7 images\n")
+print("\n 5. Check for 7 images\n")
 count_files(PART2_DIR)
 
-print("6.  Perform 2 random affine transformations on each image.")
+print("\n 6.  Perform 2 random affine transformations on each image.")
 
-# images = {
-#     "original": img,
-#     "grey": grey_img,
-#     "bin": bin_img,
-#     "hsv": hsv_img,
-#     "cielab": cielab_img,
-#     "hls": hls_img,
-#     "norm_rgb": norm_rgb
-# }
+def apply_shear(M, shear_x, shear_y):
+    shear_matrix = np.array([[1, shear_x, 0],
+                              [shear_y, 1,       0],
+                              [0,       0,       1]], dtype=np.float64)
+    M_3x3 = np.vstack([M, [0, 0, 1]])
+    return (shear_matrix @ M_3x3)[:2]
 
 transformed_images = {}
 
@@ -219,22 +223,25 @@ for name, image_dict in all_images.items():
         # Determine what transformations will happen
         do_rotate = bool(random.getrandbits(1))
         do_scale = bool(random.getrandbits(1))
+        do_shear = bool(random.getrandbits(1))
         do_translate = bool(random.getrandbits(1))
 
         # If none of the transformation were activated, force one
-        if not (do_rotate or do_scale or do_translate):
-            selected = random.randint(0,2)
-            print(selected)
-
+        if not (do_rotate or do_scale or do_shear or do_translate):
+            selected = random.randint(0,3)
             if selected == 0:
                 do_rotate = True
-            if selected == 1:
+            elif selected == 1:
                 do_scale = True
+            elif selected == 2:
+                do_shear = True
             else:
                 do_translate = True
 
         angle = random.uniform(-180, 180) if do_rotate else 0
         scale = random.uniform(0.5, 1.2) if do_scale else 1
+        shear_x  = random.uniform(-0.2, 0.2) if do_shear else 0
+        shear_y  = random.uniform(-0.2, 0.2) if do_shear else 0
 
         M = cv.getRotationMatrix2D(center, angle, scale)
 
@@ -243,6 +250,9 @@ for name, image_dict in all_images.items():
             ty = random.uniform(-.1, .1) * height
             M[0, 2] += tx
             M[1, 2] += ty
+
+        if do_shear:
+            M = apply_shear(M, shear_x, shear_y)
 
         transformed = cv.warpAffine(image, M, (width, height), borderMode=cv.BORDER_REFLECT)
         transformed_name = f'{name}_transformed_{i+1}'
@@ -259,7 +269,7 @@ for name, image_dict in all_images.items():
         transformed_images[transformed_name]["tx"] = tx if do_translate else None
         transformed_images[transformed_name]["ty"] = ty if do_translate else None
 
-        print(f'\nTransformation completed on {name}')
+        print(f'\nTransformation {i + 1} completed on {name}')
         print(f'\n  Image transformation specs:')
         print(f'    Transform angle: {angle:.4f}') if do_rotate else print("    Image not rotated")
         print(f'    Transform scale: {scale:.4f}') if do_scale else print("    Image not scaled")
@@ -268,13 +278,17 @@ for name, image_dict in all_images.items():
             print(f'    Translate ty: {ty:.4f}')
         else:
             print(f'    Image not translated')
+        if do_shear:
+            print(f'    Shear x: {shear_x:.4f}  Shear y: {shear_y:.4f}')
+        else:
+            print('    Not sheared')
 
         write_file(PART2_DIR / transformed_file, transformed)
 
-print("7. Check for 21 files")
+print("\n 7. Check for 21 files")
 count_files(PART2_DIR)
 
-print("8.  Apply a Gaussian blur to each image using the levels of sigma: 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5.")
+print("\n 8.  Apply a Gaussian blur to each image using the levels of sigma: 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5.")
 
 sigmas = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)
 all_images = all_images | transformed_images
@@ -284,10 +298,12 @@ for name, image_dict in all_images.items():
 
     image = image_dict["image"]
 
-    print(f'\nPerforming Gaussian blur on {image_dict["name"]}')
+    print(f'\n  Performing Gaussian blur on {image_dict["name"]}')
 
     for sigma in sigmas:
-        blur = cv.GaussianBlur(image,(7,7),sigma)
+        kernel_size = int(6 * sigma + 1)
+        kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
+        blur = cv.GaussianBlur(image, (kernel_size, kernel_size), sigma)
         blur_name = f'{name}_blur_{sigma}'
         blur_file = f'{blur_name}.png'
 
@@ -306,12 +322,12 @@ for name, image_dict in all_images.items():
 
         write_file(PART2_DIR / blur_file, blur)
 
-print("9. Check for 168 images")
+print("\n 9. Check for 168 images")
 count_files(PART2_DIR)
 
 print("==================== Part 3: Edge Detection ====================")
 
-print("1. Randomly create 4 subsets of 42 images")
+print("\n 1. Randomly create 4 subsets of 42 images")
 
 all_images = all_images | blur_images
 
@@ -330,7 +346,7 @@ del all_image_names[:42]
 
 group4 = all_image_names
 
-print("2.  Choose a subset to use in the remaining steps.")
+print("\n 2.  Choose a subset to use in the remaining steps.")
 
 groups = [group1, group2, group3, group4]
 
@@ -338,12 +354,9 @@ group_num = random.randint(0,3)
 
 selected_group = groups[group_num]
 
-print(f'Selected group {group_num + 1}')
+print(f'\n  Selected group {group_num + 1}')
 
-print("3. Check for 42 images")
-count_files(PART2_DIR)
-
-print("4-8. Perform Sobel, Laplacian, Canny, and Prewitt edge detection on the chosen subset. Create 42, 5-image plots of the input image next to the edge-detected images.")
+print("\n 4-8. Perform Sobel, Laplacian, Canny, and Prewitt edge detection on the chosen subset. Create 42, 5-image plots of the input image next to the edge-detected images.")
 
 prewitt_kernel_x = np.array([[-1, 0, 1],
                       [-1, 0, 1],
@@ -358,7 +371,7 @@ readme_plots = random.sample(range(1, 43), 6)
 
 for img_name in selected_group:
 
-    print(f'Configuring plot {sample_number}')
+    print(f'\n  Configuring plot {sample_number}')
     image_dict = all_images[img_name]
     edge_image = image_dict["image"]
     img_file = f'{img_name}.png'
@@ -380,7 +393,7 @@ for img_name in selected_group:
     write_file(PART3_DIR / sobel_file, sobel_abs)
 
     canny_input = cv.convertScaleAbs(edge_image) if edge_image.dtype != np.uint8 else edge_image
-    canny_edges = cv.Canny(edge_image,100,200)
+    canny_edges = cv.Canny(canny_input,100,200)
     canny_name = f'{img_name}_canny'
     canny_file = f'{canny_name}.png'
     write_file(PART3_DIR / canny_file, canny_edges)
@@ -398,11 +411,11 @@ for img_name in selected_group:
     fig.patch.set_facecolor("#1a1a2e")
     gs = fig.add_gridspec(3, 3)
 
-    edge_image = cv.cvtColor(edge_image, cv.COLOR_BGR2RGB)
-    laplacian_abs = cv.cvtColor(laplacian_abs, cv.COLOR_BGR2RGB)
-    sobel_abs = cv.cvtColor(sobel_abs, cv.COLOR_BGR2RGB)
-    canny_edges = cv.cvtColor(canny_edges, cv.COLOR_BGR2RGB)
-    prewitt_abs = cv.cvtColor(prewitt_abs, cv.COLOR_BGR2RGB)
+    edge_image    = to_rgb_display(edge_image)
+    laplacian_abs = to_rgb_display(laplacian_abs)
+    sobel_abs     = to_rgb_display(sobel_abs)
+    canny_edges   = to_rgb_display(canny_edges)
+    prewitt_abs   = to_rgb_display(prewitt_abs)
 
     ax_top = fig.add_subplot(gs[0, 1])
     ax_left = fig.add_subplot(gs[1, 0])
@@ -431,14 +444,19 @@ for img_name in selected_group:
     ax_bottom.set_title("Prewitt Edge", fontsize=12, pad=10, color="white",)
     ax_bottom.axis("off")
 
+    angle = round(image_dict["angle"], 1) if image_dict["angle"] else None
+    scale = round(image_dict["scale"], 1) if image_dict["scale"] else None
+    tx = round(image_dict["tx"], 1) if image_dict["tx"] else None
+    ty = round(image_dict["ty"], 1) if image_dict["ty"] else None
+    sigma = round(image_dict["sigma"], 1) if image_dict["sigma"] else None
+
     # Multi-line figure title
     fig.suptitle(
         f'Sample {sample_number} Pipeline Trajectory:\n'
         f'{image_dict["name"]}\n'
         f'-> {image_dict["space"]}\n'
-        f'-> Affine(Rot:{image_dict["angle"]}deg, Scale:{image_dict["scale"]}, Trans:[{image_dict["tx"]}, {image_dict["ty"]}])\n'
-        # f'-> Affine(Rot:{image_dict["angle"] if image_dict["angle"] else 0}deg, Scale:{image_dict["scale"] if image_dict["scale"] else None}, Trans:[{image_dict["tx"] if image_dict["tx"] else None}, {image_dict["ty"] if image_dict["ty"] else None}])',
-        f'-> Gaussian Blur(sigma: {image_dict["sigma"]})\n',
+        f'-> Affine(Rot:{angle}deg, Scale:{scale}, Trans:[{tx}, {ty}])\n'
+        f'-> Gaussian Blur(sigma: {sigma})\n',
         fontsize=18,
         color="white",
         y=0.95
