@@ -25,7 +25,7 @@ README_PLOTS_DIR.mkdir(exist_ok=True)
 CACHE_DIR.mkdir(exist_ok=True)
 
 # Helper functions
-SEED = 42
+SEED = 42 # To look at different result sets, change this number
 random.seed(SEED)
 
 def file_hash(path):
@@ -350,7 +350,7 @@ print("\n 2.  Choose a subset to use in the remaining steps.")
 
 groups = [group1, group2, group3, group4]
 
-group_num = random.randint(0,3)
+group_num = random.randint(0,4)
 
 selected_group = groups[group_num]
 
@@ -368,6 +368,12 @@ prewitt_kernel_y = np.array([[-1,-1,-1],
 
 sample_number = 1
 readme_plots = random.sample(range(1, 43), 6)
+
+def auto_canny(image, sigma=0.33):
+    median = np.median(image)
+    lower = int(max(0, (1.0 - sigma) * median))
+    upper = int(min(255, (1.0 + sigma) * median))
+    return cv.Canny(image, lower, upper)
 
 for img_name in selected_group:
 
@@ -393,7 +399,7 @@ for img_name in selected_group:
     write_file(PART3_DIR / sobel_file, sobel_abs)
 
     canny_input = cv.convertScaleAbs(edge_image) if edge_image.dtype != np.uint8 else edge_image
-    canny_edges = cv.Canny(canny_input,100,200)
+    canny_edges = auto_canny(canny_input)
     canny_name = f'{img_name}_canny'
     canny_file = f'{canny_name}.png'
     write_file(PART3_DIR / canny_file, canny_edges)
