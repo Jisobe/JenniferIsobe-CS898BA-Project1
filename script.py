@@ -28,22 +28,27 @@ CACHE_DIR.mkdir(exist_ok=True)
 SEED = 42 # To look at different result sets, change this number
 random.seed(SEED)
 
+# Create file hashes for the cache for uniqueness
 def file_hash(path):
     with open(path, "rb") as file:
         return hashlib.md5(file.read()).hexdigest()
 
+# Writes files to the dirs
 def write_file(path, img):
     cv.imwrite(path, img)
 
+# Used as a helper to check the number of files at various steps
 def count_files(path):
     file_count = sum(1 for item in path.iterdir() if item.is_file())
     print(f'Total files in {path.name}: {file_count}')
 
+# Converts images to RGB
 def to_rgb_display(img):
     if len(img.shape) == 2:
         return cv.cvtColor(img, cv.COLOR_GRAY2RGB)
     return cv.cvtColor(img, cv.COLOR_BGR2RGB)
 
+# Dictionary to store the images and statistics for the plots
 all_images = {}
 
 print("==================== Part 2: Basic Analysis ==================== ")
@@ -54,6 +59,7 @@ assert img is not None, f'Image file {IMG_NAME} could not be read, check file pa
 
 print("\n 1.  Find and print min, max, average, median, mode, skew, range, standard deviation, variance of the original image for each individual channel")
 
+# Creates brg channel cache file and checks if it exists. If it does, read from cache. If not, split the channels and store the results in cache
 bgr_channels_cache = CACHE_DIR / f'bgr_channel_cache_{file_hash(IMG_NAME)}.npz'
 
 if bgr_channels_cache.is_file():
@@ -71,6 +77,7 @@ brg_channels = {
     "Green": g
 }
 
+# Get stats for each channel
 for name, channel in brg_channels.items():
     flattened = channel.flatten()
     histogram = np.bincount(flattened, minlength=256)
@@ -88,6 +95,7 @@ for name, channel in brg_channels.items():
 
 print("\n 2.  Convert and save the image to greyscale, binary, HSV, CIELAB, and HLS.")
 
+# Saves original file to Part 2 dir for counting and adds to all images
 original_file = "original.png"
 write_file(PART2_DIR / original_file, img)
 all_images["original"] = {
@@ -100,6 +108,7 @@ all_images["original"] = {
     "ty": None,
     "sigma": None}
 
+# Greyscale conversion
 grey_file = "grey_img.png"
 grey_img = cv.cvtColor(img, cv.COLOR_BGR2GRAY)
 write_file(PART2_DIR / grey_file, grey_img)
@@ -113,6 +122,7 @@ all_images["grey"] = {
     "ty": None,
     "sigma": None}
 
+# Binary conversion
 bin_file = "bin_img.png"
 threshold_val, bin_img = cv.threshold(grey_img, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
 write_file(PART2_DIR / bin_file, bin_img)
@@ -126,6 +136,7 @@ all_images["bin"] = {
     "ty": None,
     "sigma": None}
 
+# HSV conversion
 hsv_file = "hsv_img.png"
 hsv_img = cv.cvtColor(img, cv.COLOR_BGR2HSV)
 write_file(PART2_DIR / hsv_file, hsv_img)
@@ -139,6 +150,7 @@ all_images["hsv"] = {
     "ty": None,
     "sigma": None}
 
+# CIELab conversion
 cielab_file = "cielab_img.png"
 cielab_img = cv.cvtColor(img, cv.COLOR_BGR2Lab)
 write_file(PART2_DIR / cielab_file, cielab_img)
@@ -152,6 +164,7 @@ all_images["cielab"] = {
     "ty": None,
     "sigma": None}
 
+# HLS conversion
 hls_file = "hls_img.png"
 hls_img = cv.cvtColor(img, cv.COLOR_BGR2HLS)
 write_file(PART2_DIR / hls_file, hls_img)
@@ -168,6 +181,7 @@ all_images["hls"] = {
 
 print("\n 3.  Normalize the lighting on the HSV by performing histogram equalization across the V (value) channel.")
 
+# Creates hsv channel cache file and checks if it exists. If it does, read from cache. If not, split the channels and store the results in cache
 hsv_channels_cache = CACHE_DIR / f'hsv_channel_cache_{file_hash(PART2_DIR / hsv_file)}.npz'
 
 if hsv_channels_cache.is_file():
@@ -179,10 +193,12 @@ else:
     h, s, v = cv.split(hsv_img)
     np.savez(hsv_channels_cache, h=h, s=s, v=v)
 
+# Histogram Eq on V channel
 norm_hsv = cv.merge([h, s, cv.equalizeHist(v)])
 
 print("\n 4.  Convert the normalized image back to RGB and save it.")
 
+# HSV to BGR
 norm_brg_file = "norm_brg_img.png"
 norm_brg = cv.cvtColor(norm_hsv, cv.COLOR_HSV2BGR)
 write_file(PART2_DIR / norm_brg_file, norm_brg)
@@ -201,6 +217,7 @@ count_files(PART2_DIR)
 
 print("\n 6.  Perform 2 random affine transformations on each image.")
 
+# Function to create a shearing transformation on an image
 def apply_shear(M, shear_x, shear_y):
     shear_matrix = np.array([[1, shear_x, 0],
                               [shear_y, 1,       0],
@@ -238,13 +255,16 @@ for name, image_dict in all_images.items():
             else:
                 do_translate = True
 
+        # Get random tranformation values as necessary
         angle = random.uniform(-180, 180) if do_rotate else 0
         scale = random.uniform(0.5, 1.2) if do_scale else 1
         shear_x  = random.uniform(-0.2, 0.2) if do_shear else 0
         shear_y  = random.uniform(-0.2, 0.2) if do_shear else 0
 
+        # Create matrix M with the given values
         M = cv.getRotationMatrix2D(center, angle, scale)
 
+        # M has to exist before the translation or shear can occur
         if do_translate:
             tx = random.uniform(-.1, .1) * width
             ty = random.uniform(-.1, .1) * height
@@ -254,6 +274,7 @@ for name, image_dict in all_images.items():
         if do_shear:
             M = apply_shear(M, shear_x, shear_y)
 
+        # Apply transformation
         transformed = cv.warpAffine(image, M, (width, height), borderMode=cv.BORDER_REFLECT)
         transformed_name = f'{name}_transformed_{i+1}'
         transformed_file = f'{transformed_name}.png'
@@ -300,6 +321,7 @@ for name, image_dict in all_images.items():
 
     print(f'\n  Performing Gaussian blur on {image_dict["name"]}')
 
+    # For each sigma value, determine kernel size an apply blur
     for sigma in sigmas:
         kernel_size = int(6 * sigma + 1)
         kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
@@ -331,6 +353,7 @@ print("\n 1. Randomly create 4 subsets of 42 images")
 
 all_images = all_images | blur_images
 
+# Create random subsets and group them
 all_image_names = list(all_images.keys())
 
 random.shuffle(all_image_names)
@@ -358,6 +381,7 @@ print(f'\n  Selected group {group_num + 1}')
 
 print("\n 4-8. Perform Sobel, Laplacian, Canny, and Prewitt edge detection on the chosen subset. Create 42, 5-image plots of the input image next to the edge-detected images.")
 
+# Create the x and y kernels for the prewitt method
 prewitt_kernel_x = np.array([[-1, 0, 1],
                       [-1, 0, 1],
                       [-1, 0, 1]], dtype=np.float32)
@@ -366,15 +390,18 @@ prewitt_kernel_y = np.array([[-1,-1,-1],
                                [ 0, 0, 0],
                                [ 1, 1, 1]], dtype=np.float32)
 
+# Used for tracking plot numbers and picking 6 random plots for the README
 sample_number = 1
 readme_plots = random.sample(range(1, 43), 6)
 
+# Function to dynamically determine canny thresholds rather than hardcoding to try to get better results
 def auto_canny(image, sigma=0.33):
     median = np.median(image)
     lower = int(max(0, (1.0 - sigma) * median))
     upper = int(min(255, (1.0 + sigma) * median))
     return cv.Canny(image, lower, upper)
 
+# For each image perform each edge detection type and save the result
 for img_name in selected_group:
 
     print(f'\n  Configuring plot {sample_number}')
