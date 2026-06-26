@@ -12,6 +12,7 @@ CURRENT_DIR = Path.cwd()
 RESULTS_DIR = CURRENT_DIR / "hw2-results" # Directory to store project results
 PART2_DIR = RESULTS_DIR / "part2" # Directory to store results from part 2
 PART3_DIR = RESULTS_DIR / "part3" # Directory to store results from part 3
+PART4_DIR = RESULTS_DIR / "part4" # Directory to store results from part 3
 # PLOTS_DIR = PART3_DIR / "plots" # Directory to store plots from part 3
 # README_PLOTS_DIR = PART3_DIR / "readme_plots" # Directory to store plots from part 3
 CACHE_DIR = CURRENT_DIR / ".cache-hw2" # Directory to store cached information about the image to reduce script rerun time
@@ -140,6 +141,38 @@ write_file(PART2_DIR / norm_hsv_file, norm_hsv_brg)
 
 print("\n==================== Part 3: Threshold Based Segmentation ==================== ")
 
+# Convert to greyscale
+grey_img = cv.cvtColor(norm_hsv_brg, cv.COLOR_BGR2GRAY)
+blur = cv.GaussianBlur(grey_img,(5,5),1.0)
+
 print("\n1. Otsu's Global Thresholding")
 
-# Convert to greyscale
+optimal_otsu_thresh, thresholded_img = cv.threshold(
+    blur, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU
+)
+
+kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5))
+clean = cv.morphologyEx(thresholded_img, cv.MORPH_OPEN, kernel, iterations=1)
+clean = cv.morphologyEx(clean, cv.MORPH_CLOSE, kernel, iterations=1)
+
+otsu_mask = "otsu_mask.png"
+otsu_foreground = "otsu_foreground.png"
+write_file(PART3_DIR / otsu_mask, thresholded_img)
+write_file(PART3_DIR / otsu_foreground, clean)
+
+print("\n2. Adaptive Thresholding")
+
+adapt_thresholded_img = cv.adaptiveThreshold(
+    blur, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV,501,-5
+)
+
+kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5))
+clean = cv.morphologyEx(adapt_thresholded_img, cv.MORPH_OPEN, kernel, iterations=1)
+clean = cv.morphologyEx(clean, cv.MORPH_CLOSE, kernel, iterations=2)
+
+adapt_mask = "adapt_mask.png"
+adapt_foreground = "adapt_foreground.png"
+write_file(PART3_DIR / adapt_mask, adapt_thresholded_img)
+write_file(PART3_DIR / adapt_foreground, clean)
+
+print("\n==================== Part 4: Classical and Optimization-Based Segmentation ==================== ")

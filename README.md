@@ -4,34 +4,46 @@
 
 - [JenniferIsobe-CS898BA-Project1](#jenniferisobe-cs898ba-project1)
   - [Table of Contents](#table-of-contents)
-  - [Code Explanation](#code-explanation)
-    - [Dependencies](#dependencies)
-    - [Configuration \& Setup](#configuration--setup)
-    - [Helper Functions](#helper-functions)
-      - [`file_hash(path)`](#file_hashpath)
-      - [`write_file(path, img)`](#write_filepath-img)
-      - [`count_files(path)`](#count_filespath)
-      - [`to_rgb_display(img)`](#to_rgb_displayimg)
-    - [Part 2: Basic Analysis](#part-2-basic-analysis)
-      - [Step 1: Per-Channel Statistics](#step-1-per-channel-statistics)
-      - [Step 2: Color Space Conversions](#step-2-color-space-conversions)
-      - [Step 3 \& 4: HSV Normalization](#step-3--4-hsv-normalization)
-      - [Step 6: Affine Transformations](#step-6-affine-transformations)
-      - [Step 8: Gaussian Blur](#step-8-gaussian-blur)
-    - [Part 3: Edge Detection](#part-3-edge-detection)
-      - [Step 1 \& 2: Image Subsets](#step-1--2-image-subsets)
-      - [Step 4: Edge Detection Techniques](#step-4-edge-detection-techniques)
-      - [Step 7: Comparison Plots](#step-7-comparison-plots)
-  - [Running the program](#running-the-program)
-  - [2.8 Gaussian Blur discussion](#28-gaussian-blur-discussion)
-  - [3.5 Edge Detection discussion](#35-edge-detection-discussion)
-  - [Plots](#plots)
-    - [Plot 1](#plot-1)
-    - [Plot 2](#plot-2)
-    - [Plot 3](#plot-3)
-    - [Plot 4](#plot-4)
-    - [Plot 5](#plot-5)
-    - [Plot 6](#plot-6)
+  - [Homework 1](#homework-1)
+    - [Code Explanation](#code-explanation)
+      - [Dependencies](#dependencies)
+      - [Configuration \& Setup](#configuration--setup)
+      - [Helper Functions](#helper-functions)
+        - [`file_hash(path)`](#file_hashpath)
+        - [`write_file(path, img)`](#write_filepath-img)
+        - [`count_files(path)`](#count_filespath)
+        - [`to_rgb_display(img)`](#to_rgb_displayimg)
+      - [Part 2: Basic Analysis](#part-2-basic-analysis)
+        - [Step 1: Per-Channel Statistics](#step-1-per-channel-statistics)
+        - [Step 2: Color Space Conversions](#step-2-color-space-conversions)
+        - [Step 3 \& 4: HSV Normalization](#step-3--4-hsv-normalization)
+        - [Step 6: Affine Transformations](#step-6-affine-transformations)
+        - [Step 8: Gaussian Blur](#step-8-gaussian-blur)
+      - [Part 3: Edge Detection](#part-3-edge-detection)
+        - [Step 1 \& 2: Image Subsets](#step-1--2-image-subsets)
+        - [Step 4: Edge Detection Techniques](#step-4-edge-detection-techniques)
+        - [Step 7: Comparison Plots](#step-7-comparison-plots)
+    - [Running the program](#running-the-program)
+    - [2.8 Gaussian Blur discussion](#28-gaussian-blur-discussion)
+    - [3.5 Edge Detection discussion](#35-edge-detection-discussion)
+    - [Plots](#plots)
+      - [Plot 1](#plot-1)
+      - [Plot 2](#plot-2)
+      - [Plot 3](#plot-3)
+      - [Plot 4](#plot-4)
+      - [Plot 5](#plot-5)
+      - [Plot 6](#plot-6)
+  - [Homework 2](#homework-2)
+    - [HW2 Code Explanation](#hw2-code-explanation)
+      - [HW2 Dependencies](#hw2-dependencies)
+      - [HW2 Setup and Configuration](#hw2-setup-and-configuration)
+      - [Part 2](#part-2)
+      - [Part 3](#part-3)
+      - [Part 4](#part-4)
+      - [Running the HW2](#running-the-hw2)
+    - [Qualitative Analysis](#qualitative-analysis)
+    - [Quantitative Comparison](#quantitative-comparison)
+    - [HW2 Plot](#hw2-plot)
 
 This repository was completed as part of CS898BA and serves as an introduction to image analysis and processing using Python and OpenCV.
 
@@ -41,9 +53,11 @@ Files contained in the result_analysis directory are the files that were used fo
 
 script.py contains the logic for the image analysis of the given original.png file. (***Please note, this will not work if original.png is not in the project root***)
 
-## Code Explanation
+## Homework 1
 
-### Dependencies
+### Code Explanation
+
+#### Dependencies
 
 ```python
 import numpy as np # Array operations and additional computation
@@ -55,7 +69,7 @@ import random # Reproducible random transforms and subset selection
 import matplotlib.pyplot as plt  # Generating comparison plot figures
 ```
 
-### Configuration & Setup
+#### Configuration & Setup
 
 ```python
 SEED = 42
@@ -75,9 +89,9 @@ CACHE_DIR   = CURRENT_DIR / ".cache"
 
 All output directories are defined as `Path` objects and created with `mkdir(exist_ok=True)`, which means the script can be rerun without manually clearing folders beforehand.
 
-### Helper Functions
+#### Helper Functions
 
-#### `file_hash(path)`
+##### `file_hash(path)`
 
 ```python
 def file_hash(path):
@@ -87,7 +101,7 @@ def file_hash(path):
 
 Generates an MD5 hash of a file which is used to build cache filenames.
 
-#### `write_file(path, img)`
+##### `write_file(path, img)`
 
 ```python
 def write_file(path, img):
@@ -96,7 +110,7 @@ def write_file(path, img):
 
 A thin wrapper around `cv.imwrite` that keeps the save calls consitent and simple throughout the script.
 
-#### `count_files(path)`
+##### `count_files(path)`
 
 ```python
 def count_files(path):
@@ -106,7 +120,7 @@ def count_files(path):
 
 Counts only files (not subdirectories) in a given directory and prints the total.
 
-#### `to_rgb_display(img)`
+##### `to_rgb_display(img)`
 
 ```python
 def to_rgb_display(img):
@@ -119,9 +133,9 @@ Converts images to a RGB array safe for `matplotlib.imshow`.
 
 OpenCV stores color images in BGR order, which matplotlib does not expect, so the channels must be swapped before display. Single-channel images (greyscale, binary, Canny output, Prewitt output) are translated to 3-channel by duplicating the single channel across R, G, and B. This doesn't change the overall image but prevents errors.
 
-### Part 2: Basic Analysis
+#### Part 2: Basic Analysis
 
-#### Step 1: Per-Channel Statistics
+##### Step 1: Per-Channel Statistics
 
 ```python
 b, g, r = cv.split(img)
@@ -151,7 +165,7 @@ else:
 
 The cache filename includes the MD5 hash of the source image, so it automatically invalidates if the source file is replaced.
 
-#### Step 2: Color Space Conversions
+##### Step 2: Color Space Conversions
 
 Seven images are produced and added to the `all_images` dictionary, which tracks each image alongside some metadata (color space, transform parameters, sigma) that will be used for the plots:
 
@@ -171,7 +185,7 @@ Binary thresholding uses Otsu's method, which automatically determines the best 
 threshold_val, bin_img = cv.threshold(grey_img, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU)
 ```
 
-#### Step 3 & 4: HSV Normalization
+##### Step 3 & 4: HSV Normalization
 
 ```python
 h, s, v = cv.split(hsv_img)
@@ -182,7 +196,7 @@ norm_brg = cv.cvtColor(norm_hsv, cv.COLOR_HSV2BGR)
 Histogram equalization brightens the image by adjusting pixel intensities so that the full 0-255
 range is used. The brightness is controled without disturbing the hue or saturation by choosing to only apply the equalization of the V channel. The result is converted to BGR for saving and further processing.
 
-#### Step 6: Affine Transformations
+##### Step 6: Affine Transformations
 
 Each of the 7 base images receives 2 random affine transforms, producing 14 additional images. Each transform randomly activates any combination of four operations:
 
@@ -226,7 +240,7 @@ The existing 2x3 matrix is temporarily expanded to 3x3 for matrix multiplication
 
 All transforms use `BORDER_REFLECT` to fill areas that fall outside the frame after transformation. `BORDER_CONSTANT` can be used to create cutoff at these points and fill the areas with black.
 
-#### Step 8: Gaussian Blur
+##### Step 8: Gaussian Blur
 
 ```python
 sigmas = (0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)
@@ -251,9 +265,9 @@ The kernel size scales with sigma. OpenCV requires the kernel size to be an odd 
 | 3.0 | 19x19 |
 | 3.5 | 23x23 |
 
-### Part 3: Edge Detection
+#### Part 3: Edge Detection
 
-#### Step 1 & 2: Image Subsets
+##### Step 1 & 2: Image Subsets
 
 ```python
 all_image_names = list(all_images.keys())
@@ -270,7 +284,7 @@ selected_group = groups[group_num]
 
 The entire 168 image key pool is shuffled and split into four equal subsets of 42. One subset is chosen randomly for edge detection. With `SEED = 42`, the same group is always selected — change the seed to investigate other subsets.
 
-#### Step 4: Edge Detection Techniques
+##### Step 4: Edge Detection Techniques
 
 All four detectors are applied to every image in the chosen 42-image subset. `CV_64F` output allows negative values then `convertScaleAbs` folds them to absolute values and scales to uint8. This is done for saving the images to their directories.
 
@@ -323,7 +337,7 @@ prewitt_abs     = cv.convertScaleAbs(prewitt_edges)
 
 OpenCV has no built-in Prewitt function, so the kernels are defined manually and applied with `filter2D`.
 
-#### Step 7: Comparison Plots
+##### Step 7: Comparison Plots
 
 ```python
 fig = plt.figure(figsize=(10, 10))
@@ -360,7 +374,7 @@ if sample_number in readme_plots:
     plt.savefig(README_PLOTS_DIR / f"{img_name}_comparison.png")
 ```
 
-## Running the program
+### Running the program
 
 Open a terminal and clone to repository to your local machine: `git clone https://github.com/Jisobe/JenniferIsobe-CS898BA-Project1.git`
 
@@ -372,7 +386,7 @@ Run the following in the terminal to run the script and write the terminal outpu
 
 ***Note: Re-running the program will override the files in the results directory. If you want to save those files, rename the results directory***
 
-## 2.8 Gaussian Blur discussion
+### 2.8 Gaussian Blur discussion
 
 On some of the images, like the original and cielab it is a bit difficult to determine the effect of the blur on the image visually. The original is pretty uniformly dark and and cielab is uniformly yellowish so the blurring effect does not stand out as much until the sigma values are at the highest levels. The greyscale image is also difficult to see the effect on but is more apparent than the original and cielab. The HSV and binary images are the easiest for me to see a difference in the sigma levels. Overall, the sigma level that give the best edge definition seems to be between levels 1.5 and 2.0.
 
@@ -386,9 +400,7 @@ Sigma 3.5: At this sigma level, all of the images become overly blurry resulting
 
 So a large sigma value will make the blurring effect on the image more intense.
 
-## 3.5 Edge Detection discussion
-
-TODO: Add 3.5 discussion to README: Discuss the pros and cons of each edge detection technique and perform an analysis of which of these techniques works best for this image set. Reminder - Canny may be the most used and applied, but it may not be the best in your case. Make sure your analysis fits your results
+### 3.5 Edge Detection discussion
 
 Sobel does well with edge detection for the given dark original image and altered color spaces. For the most part each of the images has edges that are distinct and bright. The calculation requires both x and y directional readings that are then combined back to give the overall image allowing for better detection. The downside to this is that the edges are often very thick so they are not as crisp as some of the other methods. The brightness can also make it so the edges kind of blur together rather than being distinct. In some of the images, it seemed to over detect producing a very bright image with little definition. To me, Sobel seems to have much less of a trend when it comes to examining the effect of the blur. Some images produce good edges with a sigma value of 1.0 or 2.0 but the same values in a different color space give images with almost no edges.
 
@@ -410,28 +422,50 @@ Laplacian's benefit is that is able to find edges in every directions without ha
 
 For all of the transformation variations of the original, CIELab, and greyscale images, Sobel edge detection gives the best edge definition while the other techniques result in extremely dark, almost black images. Across all of the images, Sobel is the best for the edge detection with Prewitt also performing well but not quite as well overall. I would say Laplacian is the worst. It and Canny both produce very little edge detection but across all of the color spaces, Laplacian creates very dark or black images with no indication of edges.
 
-## Plots
+### Plots
 
-### Plot 1
+#### Plot 1
 
 ![Plot 1](results-analysis/part3/readme_plots/bin_transformed_2_blur_0.5_comparison.png)
 
-### Plot 2
+#### Plot 2
 
 ![Plot 2](results-analysis/part3/readme_plots/grey_transformed_1_blur_3.0_comparison.png)
 
-### Plot 3
+#### Plot 3
 
 ![Plot 3](results-analysis/part3/readme_plots/grey_transformed_2_blur_3.0_comparison.png)
 
-### Plot 4
+#### Plot 4
 
 ![Plot 4](results-analysis/part3/readme_plots/hls_transformed_1_comparison.png)
 
-### Plot 5
+#### Plot 5
 
 ![Plot 5](results-analysis/part3/readme_plots/hsv_blur_0.5_comparison.png)
 
-### Plot 6
+#### Plot 6
 
 ![Plot 6](results-analysis/part3/readme_plots/hsv_blur_1.0_comparison.png)
+
+## Homework 2
+
+### HW2 Code Explanation
+
+#### HW2 Dependencies
+
+#### HW2 Setup and Configuration
+
+#### Part 2
+
+#### Part 3
+
+#### Part 4
+
+#### Running the HW2
+
+### Qualitative Analysis
+
+### Quantitative Comparison
+
+### HW2 Plot
