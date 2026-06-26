@@ -59,6 +59,16 @@ assert img is not None, f'Image file {IMG_NAME} could not be read, check file pa
 
 print("\n 1. Split the image into its three color channels, apply Histogram Equalization, and merge the channels back together")
 
+# General outline for each of the three equalizations below:
+# The image is converted to the proper color space as necessary
+# The respective cache is checked to see if the image loaded has been split
+# If it has, read the values from the cache
+# If it has not, split the image into its channels and save the values to the cache
+# This is done to try to save some time of retries and while debugging. I also read that the split method can be inefficient/take a lot of time, so this is an effort to optimize a little
+# The proper channel(s) is(are) equalized and then all of the channels are merged back together
+# The image is then converted back to BRG as necessary
+# The image is saved to results/part2/
+
 # ==============  BRG Equalization from orig img ==============
 # Not used: Equalized image is not as clear as the HSV image.
 
@@ -131,3 +141,5 @@ write_file(PART2_DIR / norm_hsv_file, norm_hsv_brg)
 print("\n==================== Part 3: Threshold Based Segmentation ==================== ")
 
 print("\n1. Otsu's Global Thresholding")
+
+# Convert to greyscale
