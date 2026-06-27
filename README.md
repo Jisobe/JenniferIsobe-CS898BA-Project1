@@ -643,4 +643,193 @@ IoU for Adaptive Thresholding: 0.14445584680140877
 
 Dice Coefficient for Adaptive Thresholding: 0.25244459575289396
 
+1401,2
+IoU for Adaptive Thresholding: 0.15240288671471156
+
+Dice Coefficient for Adaptive Thresholding: 0.2644958433750268
+
+1401,5
+IoU for Adaptive Thresholding: 0.15832284294588037
+
+Dice Coefficient for Adaptive Thresholding: 0.27336565778713146
+
+1401,15
+IoU for Adaptive Thresholding: 0.17673809465525184
+
+Dice Coefficient for Adaptive Thresholding: 0.3003864589036368
+
+1401,30
+IoU for Adaptive Thresholding: 0.18753638127998198
+
+Dice Coefficient for Adaptive Thresholding: 0.3158410710379189
+
+1401,50
+IoU for Adaptive Thresholding: 0.19173658166329527
+
+Dice Coefficient for Adaptive Thresholding: 0.321776782912362
+
+1401, 70
+IoU for Adaptive Thresholding: 0.13589156557890542
+
+Dice Coefficient for Adaptive Thresholding: 0.2392685529091828
+
+1401,60
+IoU for Adaptive Thresholding: 0.17196843794102964
+
+Dice Coefficient for Adaptive Thresholding: 0.2934694013486439
+
+1401,55
+IoU for Adaptive Thresholding: 0.18307942299682636
+
+Dice Coefficient for Adaptive Thresholding: 0.3094964200003967
+
+
+adapt MORPH_ELLIPSE original 5,5
+IoU for Adaptive Thresholding: 0.19173658166329527
+
+Dice Coefficient for Adaptive Thresholding: 0.321776782912362
+
+35:
+IoU for Adaptive Thresholding: 0.09111086305854012
+
+Dice Coefficient for Adaptive Thresholding: 0.1670056932677644
+
+7,7
+IoU for Adaptive Thresholding: 0.1842299742725372
+
+Dice Coefficient for Adaptive Thresholding: 0.31113884680331316
+
+3
+IoU for Adaptive Thresholding: 0.1956413565987322
+
+Dice Coefficient for Adaptive Thresholding: 0.3272575936236892
+
+1
+IoU for Adaptive Thresholding: 0.18874476450978717
+
+Dice Coefficient for Adaptive Thresholding: 0.31755305284161894
+
+no clean:
+IoU for Adaptive Thresholding: 0.18874476450978717
+
+Dice Coefficient for Adaptive Thresholding: 0.31755305284161894
+
+adaptive morph close iterations
+
+50
+IoU for Adaptive Thresholding: 0.21999239159323164
+
+Dice Coefficient for Adaptive Thresholding: 0.3606455140362568
+
+30
+IoU for Adaptive Thresholding: 0.23432585042717505
+
+Dice Coefficient for Adaptive Thresholding: 0.3796823186455661
+
+35
+IoU for Adaptive Thresholding: 0.23252053478316909
+
+Dice Coefficient for Adaptive Thresholding: 0.3773089830492361
+
+otsu morph open 1 close 1
+IoU for Otsu's: 0.11729640056392247
+
+Dice Coefficient for Otsu's: 0.20996469782722035
+
+5,
+IoU for Otsu's: 0.0
+
+Dice Coefficient for Otsu's: 0.0
+
+morph close 10
+
+IoU for Otsu's: 0.11181721743582908
+
+Dice Coefficient for Otsu's: 0.2011431657691213
+
+5
+IoU for Otsu's: 0.12102238394337224
+
+Dice Coefficient for Otsu's: 0.21591430407956172
+
+7
+
+IoU for Otsu's: 0.11884782495802247
+
+Dice Coefficient for Otsu's: 0.212446808773984
+
+3
+IoU for Otsu's: 0.12517346036500362
+
+Dice Coefficient for Otsu's: 0.22249629017093533
+
+k-means epsilon and iternations 10, 1
+IoU: 0.10726443707882026
+
+Dice Coefficient: 0.1937467392374757
+
+10,10
+IoU: 0.10730009919790524
+
+Dice Coefficient: 0.1938049121022028
+
+k=3 cluster 0
+        IoU: 0.04552586070158325
+
+        Dice Coefficient: 0.0870870103031863
+
+        cluster 1
+        IoU: 0.020918286956795765
+
+        Dice Coefficient: 0.04097935598577637
+
+        cluster 2
+        IoU: 0.09679776233259875
+
+        Dice Coefficient: 0.17650977355521863
+
+k=4 cluster 0
+        IoU: 0.017211128749268945
+
+        Dice Coefficient: 0.03383983572895277
+
+        cluster 1
+        IoU: 0.04109654962223898
+
+        Dice Coefficient: 0.07894858481117976
+
+        cluster 2
+        IoU: 0.05051653000806813
+
+        Dice Coefficient: 0.09617465040303586
+
+        cluster 3
+        IoU: 0.10730009919790524
+
+        Dice Coefficient: 0.1938049121022028
+
+k=5 cluster 0
+        IoU: 0.1077981801625931
+
+        Dice Coefficient: 0.19461700171193894
+
+        cluster 1
+        IoU: 0.04947699221181436
+
+        Dice Coefficient: 0.09428885545654438
+
+        cluster 2:
+        IoU: 0.0365086386370694
+
+        Dice Coefficient: 0.07044541121254042
+
+        cluster 3
+        IoU: 0.014142190458834808
+
+        Dice Coefficient: 0.027889955850148324
+
+        cluster 4
+        IoU: 0.044478639005733754
+
+        Dice Coefficient: 0.08516907353524075
 ### HW2 Plot
