@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 # Constant variables
 IMG_NAME = "original.png"
+GROUND_TRUTH_NAME = "ground_truth.png"
 CURRENT_DIR = Path.cwd()
 RESULTS_DIR = CURRENT_DIR / "hw2-results" # Directory to store project results
 PART2_DIR = RESULTS_DIR / "part2" # Directory to store results from part 2
@@ -71,8 +72,8 @@ print("\n 1. Split the image into its three color channels, apply Histogram Equa
 # The image is then converted back to BRG as necessary
 # The image is saved to results/part2/
 
-# ==============  BRG Equalization from orig img ==============
-# Not used: Equalized image is not as clear as the HSV image.
+# # ==============  BRG Equalization from orig img ==============
+# # Not used: Equalized image is not as clear as the HSV image.
 
 # norm_brg_file = "norm_brg_img.png"
 
@@ -116,8 +117,8 @@ norm_hsv_brg = cv.cvtColor(norm_hsv, cv.COLOR_HSV2BGR)
 
 write_file(PART2_DIR / norm_hsv_file, norm_hsv_brg)
 
-# ==============  CIELab conversion from orig img ==============
-# Not used: Resulted in very dull colors with little contrast
+# # ==============  CIELab conversion from orig img ==============
+# # Not used: Resulted in very dull colors with little contrast
 
 # cielab_file = "cielab_img.png"
 # norm_cielab_file = "norm_cielab_img.png"
@@ -144,29 +145,29 @@ print("\n==================== Part 3: Threshold Based Segmentation =============
 
 # Convert to greyscale
 grey_img = cv.cvtColor(norm_hsv_brg, cv.COLOR_BGR2GRAY)
-blur = cv.GaussianBlur(grey_img,(5,5),1.0)
+# blur = cv.GaussianBlur(grey_img,(5,5),.5) # Applying blur did not improve final IoU or DICE metrics
 
 print("\n1. Otsu's Global Thresholding")
 
 otsu_threshold, otsu_mask = cv.threshold(
-    blur, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU
+    grey_img, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU
 )
 
-kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5))
+kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (35,35))
 clean_otsu_mask = cv.morphologyEx(otsu_mask, cv.MORPH_OPEN, kernel, iterations=1)
 clean_otsu_mask = cv.morphologyEx(clean_otsu_mask, cv.MORPH_CLOSE, kernel, iterations=1)
 
-otsu_foreground_img = cv.bitwise_and(norm_hsv_brg, norm_hsv_brg, mask=clean_otsu_mask)
+otsu_foreground_img = cv.bitwise_and(norm_hsv_brg, norm_hsv_brg, mask=otsu_mask)
 
-otsu_mask = "otsu_mask.png"
+otsu_mask_file = "otsu_mask.png"
 otsu_foreground = "otsu_foreground.png"
-write_file(PART3_DIR / otsu_mask, clean_otsu_mask)
+write_file(PART3_DIR / otsu_mask_file, otsu_mask)
 write_file(PART3_DIR / otsu_foreground, otsu_foreground_img)
 
 print("\n2. Adaptive Thresholding")
 
 adapt_thresholded_mask = cv.adaptiveThreshold(
-    blur, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV,501,-5
+    grey_img, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV,1401,-2
 )
 
 kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5))
@@ -209,4 +210,43 @@ kmeans_foreground = "kmeans_foreground.png"
 write_file(PART4_DIR / kmeans_mask, cluster_mask)
 write_file(PART4_DIR / kmeans_foreground, kmeans_foreground_img)
 
-print("\n==================== Part 4: Classical and Optimization-Based Segmentation ==================== ")
+print("\n==================== Part 5: Evaluation and Analysis ==================== ")
+
+print("\n 1. Qualitative Analysis:\n    See README for discussion")
+
+print("\n 2. Quantitative Comparison")
+
+masks = {
+    "Otsu's": clean_otsu_mask,
+    "Adaptive Thresholding": adapt_thresholded_mask_clean,
+    "K-Means Clustering": cluster_mask}
+
+ground_truth_img = cv.imread(GROUND_TRUTH_NAME)
+ground_truth_grey = cv.cvtColor(ground_truth_img, cv.COLOR_RGB2GRAY)
+_, ground_truth_binary = cv.threshold(ground_truth_grey, 127, 255, cv.THRESH_BINARY)
+
+for name, mask in masks.items():
+    _, calculated_mask_binary = cv.threshold(mask, 127, 255, cv.THRESH_BINARY)
+
+    intersection = cv.bitwise_and(ground_truth_binary, calculated_mask_binary)
+    union = cv.bitwise_or(ground_truth_binary, calculated_mask_binary)
+
+    intersection_area = cv.countNonZero(intersection)
+    union_area = cv.countNonZero(union)
+
+    if union_area == 0:
+        iou = 1.0 if (intersection_area == 0) else 0.0
+    else:
+        iou = (intersection_area / union_area)
+
+    print(f"\nIoU for {name}: {iou}")
+
+    dice_num = 2 * intersection_area
+    dice_denom = cv.countNonZero(ground_truth_binary) + cv.countNonZero(calculated_mask_binary)
+
+    if dice_denom == 0:
+        dice = 1.0 if (dice_num == 0) else 0.0
+    else:
+        dice = dice_num / dice_denom
+
+    print(f"\nDice Coefficient for {name}: {dice}")

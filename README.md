@@ -43,6 +43,7 @@
       - [Running the HW2](#running-the-hw2)
     - [Qualitative Analysis](#qualitative-analysis)
     - [Quantitative Comparison](#quantitative-comparison)
+      - [Summary](#summary)
     - [HW2 Plot](#hw2-plot)
 
 This repository was completed as part of CS898BA and serves as an introduction to image analysis and processing using Python and OpenCV.
@@ -473,5 +474,173 @@ k=4 cluster 3 is best less noise but darker
 k=5 cluster 0 is best darker than k=4. Slightly less noise but also less definition in figure
 
 ### Quantitative Comparison
+
+#### Summary
+
+| Color Space | Method | IoU | DICE |
+| --- | --- | --- | --- |
+| HSV | Otsu's | 0.09378809091958203 | 0.1714922510094829 |
+| HSV | Adaptive | 0.0795855098833304 | 0.14743715834409654 |
+| HSV | K-Means | 0.10726443707882026 | 0.1937467392374757 |
+| BRG | Otsu's | 0.09092656948974875 | 0.16669603992187518 |
+| BRG | Adaptive | 0.0759775862118506 | 0.14122522101848184 |
+| BRG | K-Means | 0.0918732553077061 | 0.16828556769039069 |
+| Lab | Otsu's | 0.0938214848227465 | 0.17154807457077925 |
+| Lab | Adaptive | 0.08223744856592287 | 0.15197671948036182 |
+| Lab | K-Means | 0.060034183057928125 | 0.11326839080744515 |
+
+sigma 1.0:
+
+| Color Space | Method | IoU | DICE |
+| --- | --- | --- | --- |
+| HSV | Otsu's | 0.09378809091958203 | 0.1714922510094829 |
+| HSV | Adaptive | 0.0795855098833304 | 0.14743715834409654 |
+| HSV | K-Means | 0.10726443707882026 | 0.1937467392374757 |
+
+sigma 0.5:
+IoU for Otsu's: 0.09806164865605098
+
+Dice Coefficient for Otsu's: 0.17860863964436138
+
+IoU for Adaptive Thresholding: 0.10411629637917698
+
+Dice Coefficient for Adaptive Thresholding: 0.18859661200656935
+
+IoU for K-Means Clustering: 0.10726443707882026
+
+Dice Coefficient for K-Means Clustering: 0.1937467392374757
+
+sigma: 1.5:
+
+IoU for Otsu's: 0.09315530553565982
+
+Dice Coefficient for Otsu's: 0.17043379849858123
+
+IoU for Adaptive Thresholding: 0.07648359756466988
+
+Dice Coefficient for Adaptive Thresholding: 0.1420989557810241
+
+IoU for K-Means Clustering: 0.10726443707882026
+
+Dice Coefficient for K-Means Clustering: 0.1937467392374757
+
+
+sigma 2.0:
+
+IoU for Otsu's: 0.09311737946698775
+
+Dice Coefficient for Otsu's: 0.17037032109468883
+
+IoU for Adaptive Thresholding: 0.07616686376619156
+
+Dice Coefficient for Adaptive Thresholding: 0.14155214461749047
+
+IoU for K-Means Clustering: 0.10726443707882026
+
+Dice Coefficient for K-Means Clustering: 0.1937467392374757
+
+
+no blur morph elipse 5,5:
+IoU for Otsu's: 0.10235296383271085
+
+Dice Coefficient for Otsu's: 0.18569907677636285
+
+IoU for Adaptive Thresholding: 0.12540531743257302
+
+Dice Coefficient for Adaptive Thresholding: 0.222862493165866
+
+IoU for K-Means Clustering: 0.10726443707882026
+
+Dice Coefficient for K-Means Clustering: 0.1937467392374757
+
+w/o clean otsu:
+IoU for Otsu's: 0.09361501206543657
+
+Dice Coefficient for Otsu's: 0.17120286578479246
+
+IoU for Adaptive Thresholding: 0.12540531743257302
+
+Dice Coefficient for Adaptive Thresholding: 0.222862493165866
+
+IoU for K-Means Clustering: 0.10726443707882026
+
+Dice Coefficient for K-Means Clustering: 0.1937467392374757
+
+morph elipse 13,13:
+IoU for Otsu's: 0.11033255650701375
+
+Dice Coefficient for Otsu's: 0.19873785715895434
+
+morph elipse 31,31:
+IoU for Otsu's: 0.11408313420225871
+
+Dice Coefficient for Otsu's: 0.20480183336398528
+
+morph elipse 101
+
+IoU for Otsu's: 0.03332852496852707
+
+Dice Coefficient for Otsu's: 0.06450712268790254
+
+51:
+IoU for Otsu's: 0.11035803170822074
+
+Dice Coefficient for Otsu's: 0.19877918393302632
+
+35:
+IoU for Otsu's: 0.11729640056392247
+
+Dice Coefficient for Otsu's: 0.20996469782722035
+
+40:
+IoU for Otsu's: 0.11719592855742936
+
+Dice Coefficient for Otsu's: 0.20980371582405907
+
+adaptive thresh oroginal 501,-5:
+IoU for Adaptive Thresholding: 0.12540531743257302
+
+Dice Coefficient for Adaptive Thresholding: 0.222862493165866
+
+701,-5:
+IoU for Adaptive Thresholding: 0.13168238993710693
+
+Dice Coefficient for Adaptive Thresholding: 0.2327196943383119
+
+1001,-5:
+IoU for Adaptive Thresholding: 0.13702997003762538
+
+Dice Coefficient for Adaptive Thresholding: 0.24103141280100285
+
+5001,-5:
+IoU for Adaptive Thresholding: 0.11706340442875521
+
+Dice Coefficient for Adaptive Thresholding: 0.20959133378578307
+
+2001,-5:
+
+IoU for Adaptive Thresholding: 0.13614378106971253
+
+Dice Coefficient for Adaptive Thresholding: 0.23965942222828382
+
+1501,-5:
+IoU for Adaptive Thresholding: 0.1388546684938474
+
+Dice Coefficient for Adaptive Thresholding: 0.243849671666157
+
+1401,-5:
+IoU for Adaptive Thresholding: 0.13923707830393067
+
+Dice Coefficient for Adaptive Thresholding: 0.2444391618840629
+
+1301,-5:
+IoU for Adaptive Thresholding: 0.13877644870775246
+
+Dice Coefficient for Adaptive Thresholding: 0.24372904596899875
+
+1401,-2
+IoU for Adaptive Thresholding: 0.14445584680140877
+
+Dice Coefficient for Adaptive Thresholding: 0.25244459575289396
 
 ### HW2 Plot
