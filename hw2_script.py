@@ -21,6 +21,7 @@ CACHE_DIR = CURRENT_DIR / ".cache-hw2" # Directory to store cached information a
 RESULTS_DIR.mkdir(exist_ok=True)
 PART2_DIR.mkdir(exist_ok=True)
 PART3_DIR.mkdir(exist_ok=True)
+PART4_DIR.mkdir(exist_ok=True)
 # PLOTS_DIR.mkdir(exist_ok=True)
 # README_PLOTS_DIR.mkdir(exist_ok=True)
 CACHE_DIR.mkdir(exist_ok=True)
@@ -147,32 +148,65 @@ blur = cv.GaussianBlur(grey_img,(5,5),1.0)
 
 print("\n1. Otsu's Global Thresholding")
 
-optimal_otsu_thresh, thresholded_img = cv.threshold(
+otsu_threshold, otsu_mask = cv.threshold(
     blur, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU
 )
 
 kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5))
-clean = cv.morphologyEx(thresholded_img, cv.MORPH_OPEN, kernel, iterations=1)
-clean = cv.morphologyEx(clean, cv.MORPH_CLOSE, kernel, iterations=1)
+clean_otsu_mask = cv.morphologyEx(otsu_mask, cv.MORPH_OPEN, kernel, iterations=1)
+clean_otsu_mask = cv.morphologyEx(clean_otsu_mask, cv.MORPH_CLOSE, kernel, iterations=1)
+
+otsu_foreground_img = cv.bitwise_and(norm_hsv_brg, norm_hsv_brg, mask=clean_otsu_mask)
 
 otsu_mask = "otsu_mask.png"
 otsu_foreground = "otsu_foreground.png"
-write_file(PART3_DIR / otsu_mask, thresholded_img)
-write_file(PART3_DIR / otsu_foreground, clean)
+write_file(PART3_DIR / otsu_mask, clean_otsu_mask)
+write_file(PART3_DIR / otsu_foreground, otsu_foreground_img)
 
 print("\n2. Adaptive Thresholding")
 
-adapt_thresholded_img = cv.adaptiveThreshold(
+adapt_thresholded_mask = cv.adaptiveThreshold(
     blur, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV,501,-5
 )
 
 kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5))
-clean = cv.morphologyEx(adapt_thresholded_img, cv.MORPH_OPEN, kernel, iterations=1)
-clean = cv.morphologyEx(clean, cv.MORPH_CLOSE, kernel, iterations=2)
+adapt_thresholded_mask_clean = cv.morphologyEx(adapt_thresholded_mask, cv.MORPH_OPEN, kernel, iterations=1)
+adapt_thresholded_mask_clean = cv.morphologyEx(adapt_thresholded_mask_clean, cv.MORPH_CLOSE, kernel, iterations=2)
+
+adapt_thresh_foreground_img = cv.bitwise_and(norm_hsv_brg, norm_hsv_brg, mask=adapt_thresholded_mask_clean)
 
 adapt_mask = "adapt_mask.png"
 adapt_foreground = "adapt_foreground.png"
-write_file(PART3_DIR / adapt_mask, adapt_thresholded_img)
-write_file(PART3_DIR / adapt_foreground, clean)
+write_file(PART3_DIR / adapt_mask, adapt_thresholded_mask_clean)
+write_file(PART3_DIR / adapt_foreground, adapt_thresh_foreground_img)
+
+print("\n==================== Part 4: Classical and Optimization-Based Segmentation ==================== ")
+
+print("\n Color Space Clustering (K-Means)")
+
+Z = norm_hsv_brg.reshape((-1,3))
+Z = np.float32(Z)
+
+criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 10, 1.0)
+K = 4
+ret,label,center=cv.kmeans(Z,K,None,criteria,10,cv.KMEANS_RANDOM_CENTERS)
+
+img_h, img_w = norm_hsv_brg.shape[:2]
+labels_img = label.reshape((img_h, img_w))
+
+# Run for cluster masking evaluation to determine best cluster to use
+# for k in range(K):
+#     cluster_mask = (labels_img == k).astype(np.uint8) * 255
+#     write_file(PART4_DIR / f"cluster_{k}_mask_k5.png", cluster_mask)
+
+cluster = (labels_img == 3)
+cluster_mask = np.uint8(cluster) * 255
+
+kmeans_foreground_img = cv.bitwise_and(norm_hsv_brg, norm_hsv_brg, mask=cluster_mask)
+
+kmeans_mask = "kmeans_mask.png"
+kmeans_foreground = "kmeans_foreground.png"
+write_file(PART4_DIR / kmeans_mask, cluster_mask)
+write_file(PART4_DIR / kmeans_foreground, kmeans_foreground_img)
 
 print("\n==================== Part 4: Classical and Optimization-Based Segmentation ==================== ")

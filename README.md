@@ -466,6 +466,12 @@ For all of the transformation variations of the original, CIELab, and greyscale 
 
 ### Qualitative Analysis
 
+For part 4, a k value of 3 gives almost no distinction between the figure and the background. 4 and 5 give very similar distinction in both HSV and RGB. 4 is less costly so it is chosen.
+
+for kmeans when k=3 cluster 2 was the best: brighter image but still some noise in grass and around head for foreground
+k=4 cluster 3 is best less noise but darker
+k=5 cluster 0 is best darker than k=4. Slightly less noise but also less definition in figure
+
 ### Quantitative Comparison
 
 ### HW2 Plot
