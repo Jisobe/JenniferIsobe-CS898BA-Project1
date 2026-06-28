@@ -468,7 +468,7 @@ For all of the transformation variations of the original, CIELab, and greyscale 
 
 ## Homework 2
 
-Files contained in the hw2-result-analysis directory are the files that were used for the discussions below. This directory contains subdirectories for parts 2, 3, 4, and plots.
+Files contained in the hw2-results-analysis directory are the files that were used for the discussions below. This directory contains subdirectories for parts 2, 3, 4, and plots.
 
 hw2_script.py contains the logic for the image segmentation of the given original.png file. (***Please note, this will not work if original.png is not in the project root***)
 
@@ -685,7 +685,7 @@ Each of the methods was able to isolate the figure at least somewhat. The Otsu's
 
 Normalization using HSV is chosen because it produces the clearest, brightest image by visual inspection. The RGB equalized image is not as clear as the HSV image and the CeiLab equalization resulted in very dull colors with little contrast. HSV equalization provides good contrast with more vibrant colors that will be easier to process later.
 
-For K-means, a K value of 3 gives almost no distinction between the figure and the background. K=4 and K=5 give very similar distinction in both HSV and RGB. 4 is less costly so it is chosen.
+For K-means, a K value of 3 gives almost no distinction between the figure and the background. K=4 and K=5 give very similar distinction in both HSV and RGB. 4 is less costly so it is chosen for the visual inspection run.
 
 Visual inspection of the clusters using K-means gives the following results:
 K=3 cluster 2 is the best: Brighter image but still some noise in grass and around the figure's head for foreground
@@ -723,6 +723,36 @@ The results below are from running the script with the above parameters and valu
 | Lab | K-Means | 0.060034183057928125 | 0.11326839080744515 |
 
 After completing the functionality for calculating the IoU and Dice coefficient, the script was rerun while adjusting values to observe changes to the calculated IoU and Dice.
+
+The following were the parameters used:
+
+- Gaussian blur sigma value: No blur
+- Otsu's mask cleaning MORPH_ELLIPSE: 35,35
+- Otsu's mask cleaning MORPH_OPEN Iterations: 1
+- Otsu's mask cleaning MORPH_CLOSE Iterations: 2
+- Adaptive thresholding box size: 1401
+- Adaptive thresholding C: 50
+- Adaptive thresholding mask cleaning MORPH_ELLIPSE: 3,3
+- Adaptive thresholding mask cleaning MORPH_OPEN Iterations: 1
+- Adaptive thresholding mask cleaning MORPH_CLOSE Iterations: 30
+- K: 5
+- Cluster/Label: 0
+- K-Means Iterations: 10
+- K-Means Epsilon: 10.0
+
+| Color Space | Method | IoU | DICE |
+| --- | --- | --- | --- |
+| HSV | Otsu's | 0.12134740022375345 | 0.21643141135305582 |
+| HSV | Adaptive | 0.23432556758446624 | 0.3796819473537011 |
+| HSV | K-Means | 0.10779809189090483 | 0.19461685785521413 |
+| BRG | Otsu's | 0.10821111606072029 | 0.19528971419339428 |
+| BRG | Adaptive | 0.18949211834535698 | 0.31861012851257897 |
+| BRG | K-Means | 0.03947561553139577 | 0.07595294192873439 |
+| Lab | Otsu's | 0.12089713179940131 | 0.21571494541220287 |
+| Lab | Adaptive | 0.22557882444171598 | 0.36811801891971035 |
+| Lab | K-Means | 0.12471347112486808 | 0.2217693205010472 |
+
+While HSV was chosen as the overall best choice for normalizations, K-means performs the best using Lab normalization.
 
 #### Gaussian Blur
 
