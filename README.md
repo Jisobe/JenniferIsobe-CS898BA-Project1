@@ -681,15 +681,16 @@ Each of the methods was able to isolate the figure at least somewhat. The Otsu's
 
 ### Quantitative Comparison
 
-For part 4, a k value of 3 gives almost no distinction between the figure and the background. 4 and 5 give very similar distinction in both HSV and RGB. 4 is less costly so it is chosen.
-
-for kmeans when k=3 cluster 2 was the best: brighter image but still some noise in grass and around head for foreground
-k=4 cluster 3 is best less noise but darker
-k=5 cluster 0 is best darker than k=4. Slightly less noise but also less definition in figure
-
 #### Summary
 
-The results below are from running the script with parameters and values chosen based on visual inspection of resulting images
+Normalization using HSV is chosen because it produces the clearest, brightest image by visual inspection. The RGB equalized image is not as clear as the HSV image and the CeiLab equalization resulted in very dull colors with little contrast. HSV equalization provides good contrast with more vibrant colors that will be easier to process later.
+
+For K-means, a K value of 3 gives almost no distinction between the figure and the background. K=4 and K=5 give very similar distinction in both HSV and RGB. 4 is less costly so it is chosen.
+
+Visual inspection of the clusters using K-means gives the following results:
+K=3 cluster 2 is the best: Brighter image but still some noise in grass and around the figure's head for foreground
+K=4 cluster 3 is the best: Less noise but darker overall
+K=5 cluster 0 is the best: Darker than k=4. Slightly less noise but also less definition in the figure.
 
 The following were the parameters used:
 
@@ -706,6 +707,8 @@ The following were the parameters used:
 - Cluster/Label: 3
 - K-Means Iterations: 10
 - K-Means Epsilon: 1.0
+
+The results below are from running the script with the above parameters and values chosen based on visual inspection of resulting images.
 
 | Color Space | Method | IoU | DICE |
 | --- | --- | --- | --- |
@@ -849,7 +852,7 @@ Adjusting the Iterations and epsilon beyond 10 for either value gave almost no c
 Adjusting K values
 
 | Color Space | Method | IoU | DICE | K | Cluster |
-| --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- |
 | HSV | K-Means | 0.04552586070158325 | 0.0870870103031863 | 3 | 0 |
 | HSV | K-Means | 0.020918286956795765 | 0.04097935598577637 | 3 | 1 |
 | HSV | K-Means | 0.09679776233259875 | 0.17650977355521863 | 3 | 2 |
