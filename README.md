@@ -39,22 +39,39 @@
       - [HW2 Setup and Configuration](#hw2-setup-and-configuration)
       - [Part 2](#part-2)
       - [Part 3](#part-3)
+        - [Otsu's Thresholding](#otsus-thresholding)
+        - [Adaptive Thresholding](#adaptive-thresholding)
       - [Part 4](#part-4)
-      - [Running the HW2](#running-the-hw2)
+        - [K-Means Clustering](#k-means-clustering)
+        - [Cluster Testing](#cluster-testing)
+        - [Foreground Extraction](#foreground-extraction)
+      - [Part 5](#part-5)
+        - [Metric Calculation](#metric-calculation)
+        - [Plot Creation](#plot-creation)
+      - [Running HW2 Script](#running-hw2-script)
     - [Qualitative Analysis](#qualitative-analysis)
     - [Quantitative Comparison](#quantitative-comparison)
       - [Summary](#summary)
+      - [Gaussian Blur](#gaussian-blur)
+      - [Otsu's Mask Cleaning/Smoothing](#otsus-mask-cleaningsmoothing)
+      - [Otsu's MORPH\_CLOSE iterations](#otsus-morph_close-iterations)
+      - [Adaptive Thresholding Block Size](#adaptive-thresholding-block-size)
+      - [Adaptive Thresholding C value](#adaptive-thresholding-c-value)
+      - [Adaptive Thresholding Mask Cleaning](#adaptive-thresholding-mask-cleaning)
+      - [Adaptive Thresholding MORPH\_CLOSE iterations](#adaptive-thresholding-morph_close-iterations)
+      - [K-Means Iterations and Epsilon](#k-means-iterations-and-epsilon)
+      - [K-Means Clusters](#k-means-clusters)
     - [HW2 Plot](#hw2-plot)
 
 This repository was completed as part of CS898BA and serves as an introduction to image analysis and processing using Python and OpenCV.
 
 The AI_LOG directory provides a history of interactions with AI that were used as part of the development of this repo.
 
+## Homework 1
+
 Files contained in the result_analysis directory are the files that were used for the discussions below. This directory contains subdirectories for parts 2 and 3 with part 3 contain additional subdirectories for the plots.
 
 script.py contains the logic for the image analysis of the given original.png file. (***Please note, this will not work if original.png is not in the project root***)
-
-## Homework 1
 
 ### Code Explanation
 
@@ -451,21 +468,218 @@ For all of the transformation variations of the original, CIELab, and greyscale 
 
 ## Homework 2
 
+Files contained in the hw2-result-analysis directory are the files that were used for the discussions below. This directory contains subdirectories for parts 2, 3, 4, and plots.
+
+hw2_script.py contains the logic for the image segmentation of the given original.png file. (***Please note, this will not work if original.png is not in the project root***)
+
 ### HW2 Code Explanation
 
 #### HW2 Dependencies
 
+```python
+import numpy as np # Array operations and additional computation
+import cv2 as cv # OpenCV — image read and write, processing, edge detection
+from pathlib import Path # Cross-platform file path handling
+import hashlib  # MD5 hashing for cache invalidation
+import random # Reproducible random transforms and subset selection
+import matplotlib.pyplot as plt  # Generating comparison plot figures
+```
+
 #### HW2 Setup and Configuration
+
+Explanations for the configuration setup and helper functions used in hw2_script.py can be found in the [Homework 1 Configuration \& Setup section](#configuration--setup)
 
 #### Part 2
 
+Explanations for the reading in of the original image, channel splitting and equalization can be found in the following sections from homework 1:
+
+- [Step 1: Per-Channel Statistics](#step-1-per-channel-statistics)
+- [Step 2: Color Space Conversions](#step-2-color-space-conversions)
+- [Step 3 \& 4: HSV Normalization](#step-3--4-hsv-normalization)
+
 #### Part 3
+
+##### Otsu's Thresholding
+
+```python
+otsu_threshold, otsu_mask = cv.threshold(grey_img, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
+
+kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (35,35))
+clean_otsu_mask = cv.morphologyEx(otsu_mask, cv.MORPH_OPEN, kernel, iterations=1)
+clean_otsu_mask = cv.morphologyEx(clean_otsu_mask, cv.MORPH_CLOSE, kernel, iterations=2)
+```
+
+Otsu thresholding automatically determines threshold value. THRESH_BINARY_INV allows us to create a mask that isolates the figure in white rather than black. The cleaning set is taken to reduce some of the noise that interferes with getting a clean mask. The ellipse kernel of (35,35) was chosen because it reduces the noise from the grass without overly removing features of the figure.
+
+##### Adaptive Thresholding
+
+```python
+adapt_thresholded_mask = cv.adaptiveThreshold(grey_img, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV,1401,50)
+
+kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, (3,3))
+adapt_thresholded_mask_clean = cv.morphologyEx(adapt_thresholded_mask, cv.MORPH_OPEN, kernel, iterations=1)
+adapt_thresholded_mask_clean = cv.morphologyEx(adapt_thresholded_mask_clean, cv.MORPH_CLOSE, kernel, iterations=30)
+```
+
+With this method, the blockSize and constant C values have to be tuned manually to find the ideal threshold mask. The same cleaning steps from the Otsu's method are applied to get better figure isolation results. The high number of iteration on the MORPH_CLOSE method fills unmasked gaps in the background without losing too much of the figure.
 
 #### Part 4
 
-#### Running the HW2
+##### K-Means Clustering
+
+```python
+Z = norm_hsv_brg.reshape((-1,3))
+Z = np.float32(Z)
+
+criteria = (cv.TERM_CRITERIA_EPS + cv.TERM_CRITERIA_MAX_ITER, 10, 10.0)
+K = 5
+ret,label,center=cv.kmeans(Z,K,None,criteria,10,cv.KMEANS_RANDOM_CENTERS)
+
+img_h, img_w = norm_hsv_brg.shape[:2]
+labels_img = label.reshape((img_h, img_w))
+
+cluster = (labels_img == 0)
+cluster_mask = np.uint8(cluster) * 255
+```
+
+The normalized image is reshaped to flatten the array to allow the list to be read by the kmeans method. 5 clusters are created to group colors and then the clusters are reshaped to match the original image shape. The cluster with label 0 was chosen to be the best cluster for the mask.
+
+##### Cluster Testing
+
+```python
+# Run for cluster masking evaluation to determine best cluster to use
+for k in range(K):
+    cluster_mask = (labels_img == k).astype(np.uint8) * 255
+    write_file(PART4_DIR / f"k4_cluster_{k}_mask.png", cluster_mask)
+```
+
+This loop is used for testing the different cluster for each of the k values 3 through 5. For each k value, the cluster's mask is saved for visual inspection.
+
+##### Foreground Extraction
+
+For all of the methods above, the foreground figure is isolated by using a bitwise and operator between the mask and the normalized image. This will ideally isolate the figure from the rest of the image.
+
+```python
+kmeans_foreground_img = cv.bitwise_and(norm_hsv_brg, norm_hsv_brg, mask=cluster_mask)
+otsu_foreground_img = cv.bitwise_and(norm_hsv_brg, norm_hsv_brg, mask=clean_otsu_mask)
+adapt_thresh_foreground_img = cv.bitwise_and(norm_hsv_brg, norm_hsv_brg, mask=adapt_thresholded_mask_clean)
+```
+
+#### Part 5
+
+##### Metric Calculation
+
+```python
+masks = {
+    "Otsu's": clean_otsu_mask,
+    "Adaptive Thresholding": adapt_thresholded_mask_clean,
+    "K-Means Clustering": cluster_mask}
+
+ground_truth_img = cv.imread(GROUND_TRUTH_NAME)
+ground_truth_grey = cv.cvtColor(ground_truth_img, cv.COLOR_BGR2GRAY)
+_, ground_truth_binary = cv.threshold(ground_truth_grey, 127, 255, cv.THRESH_BINARY)
+
+metric_results = {}
+for name, mask in masks.items():
+    print(f"\n    {name}:")
+    _, calculated_mask_binary = cv.threshold(mask, 127, 255, cv.THRESH_BINARY)
+
+    intersection = cv.bitwise_and(ground_truth_binary, calculated_mask_binary)
+    union = cv.bitwise_or(ground_truth_binary, calculated_mask_binary)
+
+    intersection_area = cv.countNonZero(intersection)
+    union_area = cv.countNonZero(union)
+
+    if union_area == 0:
+        iou = 1.0 if (intersection_area == 0) else 0.0
+    else:
+        iou = (intersection_area / union_area)
+    metric_results[f'{name[0]}_iou'] = iou
+
+    dice_num = 2 * intersection_area
+    dice_denom = cv.countNonZero(ground_truth_binary) + cv.countNonZero(calculated_mask_binary)
+
+    if dice_denom == 0:
+        dice = 1.0 if (dice_num == 0) else 0.0
+    else:
+        dice = dice_num / dice_denom
+    metric_results[f'{name[0]}_dice'] = dice
+```
+
+The manually created ground truth mask is read in and converted to binary for comparison against the calculated masks. The intersection and union are calculated using bitwise and countNonZero operators find the overlapping and combined areas respectively. IoU and Dice coefficient values are then calculated according to their equations. These calculations are done for each of the 3 previously calculated masks.
+
+##### Plot Creation
+
+```python
+fig = plt.figure(figsize=(20, 10))
+fig.patch.set_facecolor("#1a1a2e")
+gs = fig.add_gridspec(2, 4)
+
+ax_top_left = fig.add_subplot(gs[0, 1])
+ax_top_right = fig.add_subplot(gs[0, 2])
+ax_bottom_left = fig.add_subplot(gs[1, 0])
+ax_bottom_center_left = fig.add_subplot(gs[1, 1])
+ax_bottom_center_right = fig.add_subplot(gs[1, 2])
+ax_bottom_right = fig.add_subplot(gs[1, 3])
+
+ax_top_left.imshow(to_rgb_display(img))
+ax_top_left.set_title("Original", fontsize=12, pad=10, color="white",)
+ax_top_left.axis("off")
+
+ax_top_right.imshow(to_rgb_display(norm_hsv_brg))
+ax_top_right.set_title("Normalized", fontsize=12, pad=10, color="white",)
+ax_top_right.axis("off")
+
+ax_bottom_left.imshow(to_rgb_display(ground_truth_binary))
+ax_bottom_left.set_title("Ground Truth Mask", fontsize=12, pad=10, color="white",)
+ax_bottom_left.axis("off")
+
+ax_bottom_center_left.imshow(to_rgb_display(clean_otsu_mask))
+ax_bottom_center_left.set_title(f'Otsu\'s Mask\nIoU: {metric_results["O_iou"]:.2f}  Dice: {metric_results["O_dice"]:.2f}', fontsize=12, pad=10, color="white",)
+ax_bottom_center_left.axis("off")
+
+ax_bottom_center_right.imshow(to_rgb_display(adapt_thresholded_mask_clean))
+ax_bottom_center_right.set_title(f'Adaptive Thresholding Mask\nIoU: {metric_results["A_iou"]:.2f}  Dice: {metric_results["A_dice"]:.2f}', fontsize=12, pad=10, color="white",)
+ax_bottom_center_right.axis("off")
+
+ax_bottom_right.imshow(to_rgb_display(cluster_mask))
+ax_bottom_right.set_title(f'K-Means Clustering Mask\nIoU: {metric_results["K_iou"]:.2f}  Dice: {metric_results["K_dice"]:.2f}', fontsize=12, pad=10, color="white",)
+ax_bottom_right.axis("off")
+
+# Multi-line figure title
+fig.suptitle(
+    "Image Segmentation and Masking Summary\n",
+    fontsize=18,
+    color="white",
+    y=0.95
+)
+
+# Adjust spacing
+plt.tight_layout(rect=[0, 0, 1, 0.90])
+
+plt.savefig(PLOTS_DIR / f"hw2_plot.png", facecolor=fig.get_facecolor())
+plt.close()
+```
+
+A 20x10 plot is created using a 2x4 grid. The grid is filled in with the original and normalized images on the top row in the second and third columns and the bottom 4 columns are filled with the ground truth, Otsu's, Adaptive Thresholding, and K-Means clustering masks. Each image is given a lab above with the Otsu's, Adaptive Thresholding, and K-Means clustering masks having the addition of their IoU and Dice values.
+
+#### Running HW2 Script
+
+Open a terminal and clone to repository to your local machine: `git clone https://github.com/Jisobe/JenniferIsobe-CS898BA-Project1.git`
+
+Change directories into the project: `cd JenniferIsobe-CS898BA-Project1`
+
+Run the following in the terminal to run the script: `uv run hw2_script.py`
+
+Run the following in the terminal to run the script and write the terminal output to a file: `uv run hw2_script.py > output.txt`
+
+***Note: Re-running the program will override the files in the results directory. If you want to save those files, rename the results directory***
 
 ### Qualitative Analysis
+
+Each of the methods was able to isolate the figure at least somewhat. The Otsu's mask did cut off more of the back of the figure as well as a large portion of its neck and top of it's head. These were lighter areas of the figure so for Otsu that automatically separates the image into two brightness groups this makes sense. Large portions of the grass in the foreground also remain however, this mask did pretty well with removing the houses in the background. Most if not all of the unmasked portions of the resulting foreground image are either the figure or some sort of plant matter. This makes sense because in the image, much of the darker vegetation is fairly close in color to the clothing the figure is wearing. The adaptive thresholding method cuts off less of the figure but still misses portions of the head and neck. This method did much better with masking the grass in the foreground, leaving only small patches as opposed to the large areas in the corners that were left by the Otsu method. The adaptive thresholding method did about the same as the Otsu method when it comes to the trees and bushes in the background, with most of them remaining unmasked. The adaptive thresholding however also left the roofs and cars mostly unmasked. K-means clustering had a very similar performance to the Otsu's method with slightly more of the cars unmasked. the biggest difference is in the graininess of the mask. While the Otsu's and adaptive thresholding methods gave more stark differences between the masked and unmasked areas. The graininess give the actual mask more detail while dulling and blurring the resulting foreground image. This results in the mask have a better visual representation of the figure that the isolated foreground image. Adaptive thresholding does the best overall with maintaining edges however, they all struggle especially on the back of the figure. However, when compared to results from homework 1, the figure outline and isolation is much better. The best of the edge detection in homework 1 was fairly sparse or very noisy while methods from homework 2 do a better job of outlining the desired figure.
+
+### Quantitative Comparison
 
 For part 4, a k value of 3 gives almost no distinction between the figure and the background. 4 and 5 give very similar distinction in both HSV and RGB. 4 is less costly so it is chosen.
 
@@ -473,9 +687,25 @@ for kmeans when k=3 cluster 2 was the best: brighter image but still some noise 
 k=4 cluster 3 is best less noise but darker
 k=5 cluster 0 is best darker than k=4. Slightly less noise but also less definition in figure
 
-### Quantitative Comparison
-
 #### Summary
+
+The results below are from running the script with parameters and values chosen based on visual inspection of resulting images
+
+The following were the parameters used:
+
+- Gaussian blur sigma value: 1.0
+- Otsu's mask cleaning MORPH_ELLIPSE: 5,5
+- Otsu's mask cleaning MORPH_OPEN Iterations: 1
+- Otsu's mask cleaning MORPH_CLOSE Iterations: 1
+- Adaptive thresholding box size: 501
+- Adaptive thresholding C: -5
+- Adaptive thresholding mask cleaning MORPH_ELLIPSE: 5,5
+- Adaptive thresholding mask cleaning MORPH_OPEN Iterations: 1
+- Adaptive thresholding mask cleaning MORPH_CLOSE Iterations: 2
+- K: 4
+- Cluster/Label: 3
+- K-Means Iterations: 10
+- K-Means Epsilon: 1.0
 
 | Color Space | Method | IoU | DICE |
 | --- | --- | --- | --- |
@@ -489,347 +719,152 @@ k=5 cluster 0 is best darker than k=4. Slightly less noise but also less definit
 | Lab | Adaptive | 0.08223744856592287 | 0.15197671948036182 |
 | Lab | K-Means | 0.060034183057928125 | 0.11326839080744515 |
 
-sigma 1.0:
+After completing the functionality for calculating the IoU and Dice coefficient, the script was rerun while adjusting values to observe changes to the calculated IoU and Dice.
+
+#### Gaussian Blur
+
+Adjusting the sigma value for the Gaussian blur. ***Note: K-means does not use gaussian blurred images so is not affected***
+
+| Color Space | Method | IoU | DICE | Sigma |
+| --- | --- | --- | --- | --- |
+| HSV | Otsu's | 0.09806164865605098 | 0.17860863964436138 | 0.5 |
+| HSV | Otsu's | 0.09378809091958203 | 0.1714922510094829 | 1.0 |
+| HSV | Otsu's | 0.09315530553565982 | 0.17043379849858123 | 1.5 |
+| HSV | Otsu's | 0.09311737946698775 | 0.17037032109468883 | 2.0 |
+| HSV | Otsu's | 0.10235296383271085 | 0.18569907677636285 | No blur |
+| HSV | Adaptive | 0.10411629637917698 | 0.18859661200656935 | 0.5 |
+| HSV | Adaptive | 0.0795855098833304 | 0.14743715834409654 | 1.0 |
+| HSV | Adaptive | 0.07648359756466988 | 0.1420989557810241 | 1.5 |
+| HSV | Adaptive | 0.07616686376619156 | 0.14155214461749047 | 2.0 |
+| HSV | Adaptive | 0.12540531743257302 | 0.222862493165866 | No blur |
 
-| Color Space | Method | IoU | DICE |
-| --- | --- | --- | --- |
-| HSV | Otsu's | 0.09378809091958203 | 0.1714922510094829 |
-| HSV | Adaptive | 0.0795855098833304 | 0.14743715834409654 |
-| HSV | K-Means | 0.10726443707882026 | 0.1937467392374757 |
+Removing the blurring functionality created better masks so the gaussian blur logic was commented out in the script.
 
-sigma 0.5:
-IoU for Otsu's: 0.09806164865605098
+#### Otsu's Mask Cleaning/Smoothing
 
-Dice Coefficient for Otsu's: 0.17860863964436138
+Adjusting the ellipse size for the cleaning step on the Otsu's Mask.
 
-IoU for Adaptive Thresholding: 0.10411629637917698
+| Color Space | Method | IoU | DICE | MORPH_ELLIPSE |
+| --- | --- | --- | --- | --- |
+| HSV | Otsu's | 0.11033255650701375 | 0.19873785715895434 | 13,13 |
+| HSV | Otsu's | 0.11408313420225871 | 0.20480183336398528 | 31,31 |
+| HSV | Otsu's | 0.11729640056392247 | 0.20996469782722035 | 35,35 |
+| HSV | Otsu's | 0.11719592855742936 | 0.20980371582405907 | 40,40 |
+| HSV | Otsu's | 0.11035803170822074 | 0.19877918393302632 | 51,51 |
+| HSV | Otsu's | 0.03332852496852707 | 0.06450712268790254 | 101,101 |
+| HSV | Otsu's | 0.09361501206543657 | 0.17120286578479246 | No cleaning |
 
-Dice Coefficient for Adaptive Thresholding: 0.18859661200656935
+The ellipse size of 13,13 give the best outcome in terms of IoU and Dice
 
-IoU for K-Means Clustering: 0.10726443707882026
+#### Otsu's MORPH_CLOSE iterations
 
-Dice Coefficient for K-Means Clustering: 0.1937467392374757
+Adjusting the iterations of the MORPH_CLOSE step. Iterations other than 1 for the OPEN step resulted in IoU and Dice of 0.
 
-sigma: 1.5:
+| Color Space | Method | IoU | DICE | MORPH_CLOSE Iterations |
+| --- | --- | --- | --- | --- |
+| HSV | Adaptive | 0.11729640056392247 | 0.20996469782722035 | 1 |
+| HSV | Adaptive | 0.12517346036500362 | 0.22249629017093533 | 3 |
+| HSV | Adaptive | 0.12102238394337224 | 0.21591430407956172 | 5 |
+| HSV | Adaptive | 0.11884782495802247 | 0.212446808773984 | 7 |
+| HSV | Adaptive | 0.11181721743582908 | 0.2011431657691213 | 10 |
 
-IoU for Otsu's: 0.09315530553565982
+3 iterations produces the highest result
 
-Dice Coefficient for Otsu's: 0.17043379849858123
+#### Adaptive Thresholding Block Size
 
-IoU for Adaptive Thresholding: 0.07648359756466988
+Adjusting the block size of the adaptive thresholding with C=-5
 
-Dice Coefficient for Adaptive Thresholding: 0.1420989557810241
+| Color Space | Method | IoU | DICE | Block Size |
+| --- | --- | --- | --- | --- |
+| HSV | Adaptive | 0.12540531743257302 | 0.222862493165866 | 501 |
+| HSV | Adaptive | 0.13168238993710693 | 0.2327196943383119 | 701 |
+| HSV | Adaptive | 0.13702997003762538 | 0.24103141280100285 | 1001 |
+| HSV | Adaptive | 0.13877644870775246 | 0.24372904596899875 | 1301 |
+| HSV | Adaptive | 0.13923707830393067 | 0.2444391618840629 | 1401 |
+| HSV | Adaptive | 0.1388546684938474 | 0.243849671666157 | 1501 |
+| HSV | Adaptive | 0.13614378106971253 | 0.23965942222828382 | 2001 |
+| HSV | Adaptive | 0.11706340442875521 | 0.20959133378578307 | 5001 |
 
-IoU for K-Means Clustering: 0.10726443707882026
+A blocksize of 1401 gives the best values.
 
-Dice Coefficient for K-Means Clustering: 0.1937467392374757
+#### Adaptive Thresholding C value
 
+Adjusting the C value of the adaptive thresholding with blockSize=1401
 
-sigma 2.0:
+| Color Space | Method | IoU | DICE | Block Size |
+| --- | --- | --- | --- | --- |
+| HSV | Adaptive | 0.14445584680140877 | 0.25244459575289396 | -2 |
+| HSV | Adaptive | 0.13923707830393067 | 0.2444391618840629 | -5 |
+| HSV | Adaptive | 0.15240288671471156 | 0.2644958433750268 | 2 |
+| HSV | Adaptive | 0.15832284294588037 | 0.27336565778713146 | 5 |
+| HSV | Adaptive | 0.17673809465525184 | 0.3003864589036368 | 15 |
+| HSV | Adaptive | 0.18753638127998198 | 0.3158410710379189 | 30 |
+| HSV | Adaptive | 0.19173658166329527 | 0.321776782912362 | 50 |
+| HSV | Adaptive | 0.18307942299682636 | 0.3094964200003967 | 55 |
+| HSV | Adaptive | 0.17196843794102964 | 0.2934694013486439 | 60 |
+| HSV | Adaptive | 0.13589156557890542 | 0.2392685529091828 | 70 |
 
-IoU for Otsu's: 0.09311737946698775
+A C value of 50 gives the highest results
 
-Dice Coefficient for Otsu's: 0.17037032109468883
+#### Adaptive Thresholding Mask Cleaning
 
-IoU for Adaptive Thresholding: 0.07616686376619156
+Adjusting the ellipse size for the cleaning step on the Adaptive Thresholding Mask.
 
-Dice Coefficient for Adaptive Thresholding: 0.14155214461749047
+| Color Space | Method | IoU | DICE | MORPH_ELLIPSE |
+| --- | --- | --- | --- | --- |
+| HSV | Adaptive | 0.18874476450978717 | 0.31755305284161894 | 1,1 |
+| HSV | Adaptive | 0.1956413565987322 | 0.3272575936236892 | 3,3 |
+| HSV | Adaptive | 0.19173658166329527 | 0.321776782912362 | 5,5 |
+| HSV | Adaptive | 0.1842299742725372 | 0.31113884680331316 | 7,7 |
+| HSV | Adaptive | 0.09111086305854012 | 0.1670056932677644 | 35,35 |
+| HSV | Adaptive | 0.18874476450978717 | 0.31755305284161894 | No cleaning |
 
-IoU for K-Means Clustering: 0.10726443707882026
+Using an ellipse value of 3,3 gives the best results.
 
-Dice Coefficient for K-Means Clustering: 0.1937467392374757
+#### Adaptive Thresholding MORPH_CLOSE iterations
 
+Adjusting the iterations of the MORPH_CLOSE step. Iterations other than 1 for the OPEN step resulted in IoU and Dice of 0.
 
-no blur morph elipse 5,5:
-IoU for Otsu's: 0.10235296383271085
+| Color Space | Method | IoU | DICE | MORPH_CLOSE Iterations |
+| --- | --- | --- | --- | --- |
+| HSV | Adaptive | 0.23432585042717505 | 0.3796823186455661 | 30 |
+| HSV | Adaptive | 0.23252053478316909 | 0.3773089830492361 | 35 |
+| HSV | Adaptive | 0.21999239159323164 | 0.3606455140362568 | 50 |
 
-Dice Coefficient for Otsu's: 0.18569907677636285
+30 Iterations produces the best results
 
-IoU for Adaptive Thresholding: 0.12540531743257302
+#### K-Means Iterations and Epsilon
 
-Dice Coefficient for Adaptive Thresholding: 0.222862493165866
+Adjusting the Iterations and epsilon beyond 10 for either value gave almost no change or negative change.
 
-IoU for K-Means Clustering: 0.10726443707882026
+| Color Space | Method | IoU | DICE | Iterations, Epsilon |
+| --- | --- | --- | --- | --- |
+| HSV | K-Means | 0.10726443707882026 | 0.1937467392374757 | 10,1.0 |
+| HSV | K-Means | 0.10730009919790524 | 0.1938049121022028 | 10,10.0 |
 
-Dice Coefficient for K-Means Clustering: 0.1937467392374757
+10,10 gave the best results
 
-w/o clean otsu:
-IoU for Otsu's: 0.09361501206543657
+#### K-Means Clusters
 
-Dice Coefficient for Otsu's: 0.17120286578479246
+Adjusting K values
 
-IoU for Adaptive Thresholding: 0.12540531743257302
+| Color Space | Method | IoU | DICE | K | Cluster |
+| --- | --- | --- | --- | --- |
+| HSV | K-Means | 0.04552586070158325 | 0.0870870103031863 | 3 | 0 |
+| HSV | K-Means | 0.020918286956795765 | 0.04097935598577637 | 3 | 1 |
+| HSV | K-Means | 0.09679776233259875 | 0.17650977355521863 | 3 | 2 |
+| HSV | K-Means | 0.017211128749268945 | 0.03383983572895277 | 4 | 0 |
+| HSV | K-Means | 0.04109654962223898 | 0.07894858481117976 | 4 | 1 |
+| HSV | K-Means | 0.05051653000806813 | 0.09617465040303586 | 4 | 2 |
+| HSV | K-Means | 0.10730009919790524 | 0.1938049121022028 | 4 | 3 |
+| HSV | K-Means | 0.1077981801625931 | 0.19461700171193894 | 5 | 0 |
+| HSV | K-Means | 0.04947699221181436 | 0.09428885545654438 | 5 | 1 |
+| HSV | K-Means | 0.0365086386370694 | 0.07044541121254042 | 5 | 2 |
+| HSV | K-Means | 0.014142190458834808 | 0.027889955850148324 | 5 | 3 |
+| HSV | K-Means | 0.044478639005733754 | 0.08516907353524075 | 5 | 4 |
 
-Dice Coefficient for Adaptive Thresholding: 0.222862493165866
+Cluster 0 when K=5 give the best IoU and Dice values.
 
-IoU for K-Means Clustering: 0.10726443707882026
-
-Dice Coefficient for K-Means Clustering: 0.1937467392374757
-
-morph elipse 13,13:
-IoU for Otsu's: 0.11033255650701375
-
-Dice Coefficient for Otsu's: 0.19873785715895434
-
-morph elipse 31,31:
-IoU for Otsu's: 0.11408313420225871
-
-Dice Coefficient for Otsu's: 0.20480183336398528
-
-morph elipse 101
-
-IoU for Otsu's: 0.03332852496852707
-
-Dice Coefficient for Otsu's: 0.06450712268790254
-
-51:
-IoU for Otsu's: 0.11035803170822074
-
-Dice Coefficient for Otsu's: 0.19877918393302632
-
-35:
-IoU for Otsu's: 0.11729640056392247
-
-Dice Coefficient for Otsu's: 0.20996469782722035
-
-40:
-IoU for Otsu's: 0.11719592855742936
-
-Dice Coefficient for Otsu's: 0.20980371582405907
-
-adaptive thresh oroginal 501,-5:
-IoU for Adaptive Thresholding: 0.12540531743257302
-
-Dice Coefficient for Adaptive Thresholding: 0.222862493165866
-
-701,-5:
-IoU for Adaptive Thresholding: 0.13168238993710693
-
-Dice Coefficient for Adaptive Thresholding: 0.2327196943383119
-
-1001,-5:
-IoU for Adaptive Thresholding: 0.13702997003762538
-
-Dice Coefficient for Adaptive Thresholding: 0.24103141280100285
-
-5001,-5:
-IoU for Adaptive Thresholding: 0.11706340442875521
-
-Dice Coefficient for Adaptive Thresholding: 0.20959133378578307
-
-2001,-5:
-
-IoU for Adaptive Thresholding: 0.13614378106971253
-
-Dice Coefficient for Adaptive Thresholding: 0.23965942222828382
-
-1501,-5:
-IoU for Adaptive Thresholding: 0.1388546684938474
-
-Dice Coefficient for Adaptive Thresholding: 0.243849671666157
-
-1401,-5:
-IoU for Adaptive Thresholding: 0.13923707830393067
-
-Dice Coefficient for Adaptive Thresholding: 0.2444391618840629
-
-1301,-5:
-IoU for Adaptive Thresholding: 0.13877644870775246
-
-Dice Coefficient for Adaptive Thresholding: 0.24372904596899875
-
-1401,-2
-IoU for Adaptive Thresholding: 0.14445584680140877
-
-Dice Coefficient for Adaptive Thresholding: 0.25244459575289396
-
-1401,2
-IoU for Adaptive Thresholding: 0.15240288671471156
-
-Dice Coefficient for Adaptive Thresholding: 0.2644958433750268
-
-1401,5
-IoU for Adaptive Thresholding: 0.15832284294588037
-
-Dice Coefficient for Adaptive Thresholding: 0.27336565778713146
-
-1401,15
-IoU for Adaptive Thresholding: 0.17673809465525184
-
-Dice Coefficient for Adaptive Thresholding: 0.3003864589036368
-
-1401,30
-IoU for Adaptive Thresholding: 0.18753638127998198
-
-Dice Coefficient for Adaptive Thresholding: 0.3158410710379189
-
-1401,50
-IoU for Adaptive Thresholding: 0.19173658166329527
-
-Dice Coefficient for Adaptive Thresholding: 0.321776782912362
-
-1401, 70
-IoU for Adaptive Thresholding: 0.13589156557890542
-
-Dice Coefficient for Adaptive Thresholding: 0.2392685529091828
-
-1401,60
-IoU for Adaptive Thresholding: 0.17196843794102964
-
-Dice Coefficient for Adaptive Thresholding: 0.2934694013486439
-
-1401,55
-IoU for Adaptive Thresholding: 0.18307942299682636
-
-Dice Coefficient for Adaptive Thresholding: 0.3094964200003967
-
-
-adapt MORPH_ELLIPSE original 5,5
-IoU for Adaptive Thresholding: 0.19173658166329527
-
-Dice Coefficient for Adaptive Thresholding: 0.321776782912362
-
-35:
-IoU for Adaptive Thresholding: 0.09111086305854012
-
-Dice Coefficient for Adaptive Thresholding: 0.1670056932677644
-
-7,7
-IoU for Adaptive Thresholding: 0.1842299742725372
-
-Dice Coefficient for Adaptive Thresholding: 0.31113884680331316
-
-3
-IoU for Adaptive Thresholding: 0.1956413565987322
-
-Dice Coefficient for Adaptive Thresholding: 0.3272575936236892
-
-1
-IoU for Adaptive Thresholding: 0.18874476450978717
-
-Dice Coefficient for Adaptive Thresholding: 0.31755305284161894
-
-no clean:
-IoU for Adaptive Thresholding: 0.18874476450978717
-
-Dice Coefficient for Adaptive Thresholding: 0.31755305284161894
-
-adaptive morph close iterations
-
-50
-IoU for Adaptive Thresholding: 0.21999239159323164
-
-Dice Coefficient for Adaptive Thresholding: 0.3606455140362568
-
-30
-IoU for Adaptive Thresholding: 0.23432585042717505
-
-Dice Coefficient for Adaptive Thresholding: 0.3796823186455661
-
-35
-IoU for Adaptive Thresholding: 0.23252053478316909
-
-Dice Coefficient for Adaptive Thresholding: 0.3773089830492361
-
-otsu morph open 1 close 1
-IoU for Otsu's: 0.11729640056392247
-
-Dice Coefficient for Otsu's: 0.20996469782722035
-
-5,
-IoU for Otsu's: 0.0
-
-Dice Coefficient for Otsu's: 0.0
-
-morph close 10
-
-IoU for Otsu's: 0.11181721743582908
-
-Dice Coefficient for Otsu's: 0.2011431657691213
-
-5
-IoU for Otsu's: 0.12102238394337224
-
-Dice Coefficient for Otsu's: 0.21591430407956172
-
-7
-
-IoU for Otsu's: 0.11884782495802247
-
-Dice Coefficient for Otsu's: 0.212446808773984
-
-3
-IoU for Otsu's: 0.12517346036500362
-
-Dice Coefficient for Otsu's: 0.22249629017093533
-
-k-means epsilon and iternations 10, 1
-IoU: 0.10726443707882026
-
-Dice Coefficient: 0.1937467392374757
-
-10,10
-IoU: 0.10730009919790524
-
-Dice Coefficient: 0.1938049121022028
-
-k=3 cluster 0
-        IoU: 0.04552586070158325
-
-        Dice Coefficient: 0.0870870103031863
-
-        cluster 1
-        IoU: 0.020918286956795765
-
-        Dice Coefficient: 0.04097935598577637
-
-        cluster 2
-        IoU: 0.09679776233259875
-
-        Dice Coefficient: 0.17650977355521863
-
-k=4 cluster 0
-        IoU: 0.017211128749268945
-
-        Dice Coefficient: 0.03383983572895277
-
-        cluster 1
-        IoU: 0.04109654962223898
-
-        Dice Coefficient: 0.07894858481117976
-
-        cluster 2
-        IoU: 0.05051653000806813
-
-        Dice Coefficient: 0.09617465040303586
-
-        cluster 3
-        IoU: 0.10730009919790524
-
-        Dice Coefficient: 0.1938049121022028
-
-k=5 cluster 0
-        IoU: 0.1077981801625931
-
-        Dice Coefficient: 0.19461700171193894
-
-        cluster 1
-        IoU: 0.04947699221181436
-
-        Dice Coefficient: 0.09428885545654438
-
-        cluster 2:
-        IoU: 0.0365086386370694
-
-        Dice Coefficient: 0.07044541121254042
-
-        cluster 3
-        IoU: 0.014142190458834808
-
-        Dice Coefficient: 0.027889955850148324
-
-        cluster 4
-        IoU: 0.044478639005733754
-
-        Dice Coefficient: 0.08516907353524075
 ### HW2 Plot
+
+![Summary Plot](hw2-results-analysis/plots/hw2_plot.png)

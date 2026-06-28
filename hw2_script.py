@@ -2,7 +2,6 @@ import numpy as np
 import cv2 as cv
 from pathlib import Path
 import hashlib
-from scipy import stats
 import random
 import matplotlib.pyplot as plt
 
@@ -26,8 +25,6 @@ PLOTS_DIR.mkdir(exist_ok=True)
 CACHE_DIR.mkdir(exist_ok=True)
 
 # Helper functions
-SEED = 42 # To look at different result sets, change this number
-random.seed(SEED)
 
 # Create file hashes for the cache for uniqueness
 def file_hash(path):
@@ -37,11 +34,6 @@ def file_hash(path):
 # Writes files to the dirs
 def write_file(path, img):
     cv.imwrite(path, img)
-
-# Used as a helper to check the number of files at various steps
-def count_files(path):
-    file_count = sum(1 for item in path.iterdir() if item.is_file())
-    print(f'Total files in {path.name}: {file_count}')
 
 # Converts images to RGB
 def to_rgb_display(img):
@@ -217,9 +209,10 @@ masks = {
     "K-Means Clustering": cluster_mask}
 
 ground_truth_img = cv.imread(GROUND_TRUTH_NAME)
-ground_truth_grey = cv.cvtColor(ground_truth_img, cv.COLOR_RGB2GRAY)
+ground_truth_grey = cv.cvtColor(ground_truth_img, cv.COLOR_BGR2GRAY)
 _, ground_truth_binary = cv.threshold(ground_truth_grey, 127, 255, cv.THRESH_BINARY)
 
+metric_results = {}
 for name, mask in masks.items():
     print(f"\n    {name}:")
     _, calculated_mask_binary = cv.threshold(mask, 127, 255, cv.THRESH_BINARY)
@@ -234,6 +227,7 @@ for name, mask in masks.items():
         iou = 1.0 if (intersection_area == 0) else 0.0
     else:
         iou = (intersection_area / union_area)
+    metric_results[f'{name[0]}_iou'] = iou
 
     print(f"\n        IoU: {iou}")
 
@@ -244,56 +238,60 @@ for name, mask in masks.items():
         dice = 1.0 if (dice_num == 0) else 0.0
     else:
         dice = dice_num / dice_denom
+    metric_results[f'{name[0]}_dice'] = dice
 
     print(f"\n        Dice Coefficient: {dice}")
 
 # Plotting
+print("\nCreating a summary plot...")
 
-    fig = plt.figure(figsize=(20, 10))
-    fig.patch.set_facecolor("#1a1a2e")
-    gs = fig.add_gridspec(2, 4)
+fig = plt.figure(figsize=(20, 10))
+fig.patch.set_facecolor("#1a1a2e")
+gs = fig.add_gridspec(2, 4)
 
-    ax_top_left = fig.add_subplot(gs[0, 1])
-    ax_top_right = fig.add_subplot(gs[0, 2])
-    ax_bottom_left = fig.add_subplot(gs[1, 0])
-    ax_bottom_center_left = fig.add_subplot(gs[1, 1])
-    ax_bottom_center_right = fig.add_subplot(gs[1, 2])
-    ax_bottom_right = fig.add_subplot(gs[1, 3])
+ax_top_left = fig.add_subplot(gs[0, 1])
+ax_top_right = fig.add_subplot(gs[0, 2])
+ax_bottom_left = fig.add_subplot(gs[1, 0])
+ax_bottom_center_left = fig.add_subplot(gs[1, 1])
+ax_bottom_center_right = fig.add_subplot(gs[1, 2])
+ax_bottom_right = fig.add_subplot(gs[1, 3])
 
-    ax_top_left.imshow(to_rgb_display(img))
-    ax_top_left.set_title("Original", fontsize=12, color="white",)
-    ax_top_left.axis("off")
+ax_top_left.imshow(to_rgb_display(img))
+ax_top_left.set_title("Original", fontsize=12, pad=10, color="white",)
+ax_top_left.axis("off")
 
-    ax_top_right.imshow(to_rgb_display(norm_hsv_brg))
-    ax_top_right.set_title("Normalized", fontsize=12, color="white",)
-    ax_top_right.axis("off")
+ax_top_right.imshow(to_rgb_display(norm_hsv_brg))
+ax_top_right.set_title("Normalized", fontsize=12, pad=10, color="white",)
+ax_top_right.axis("off")
 
-    ax_bottom_left.imshow(to_rgb_display(ground_truth_img))
-    ax_bottom_left.set_title("Ground Truth Mask", fontsize=12, color="white",)
-    ax_bottom_left.axis("off")
+ax_bottom_left.imshow(to_rgb_display(ground_truth_binary))
+ax_bottom_left.set_title("Ground Truth Mask", fontsize=12, pad=10, color="white",)
+ax_bottom_left.axis("off")
 
-    ax_bottom_center_left.imshow(to_rgb_display(clean_otsu_mask))
-    ax_bottom_center_left.set_title("Otsu's Mask", fontsize=12, color="white",)
-    ax_bottom_center_left.axis("off")
+ax_bottom_center_left.imshow(to_rgb_display(clean_otsu_mask))
+ax_bottom_center_left.set_title(f'Otsu\'s Mask\nIoU: {metric_results["O_iou"]:.2f}  Dice: {metric_results["O_dice"]:.2f}', fontsize=12, pad=10, color="white",)
+ax_bottom_center_left.axis("off")
 
-    ax_bottom_center_right.imshow(to_rgb_display(adapt_thresholded_mask_clean))
-    ax_bottom_center_right.set_title("Adaptive Thresholding Mask", fontsize=12, color="white",)
-    ax_bottom_center_right.axis("off")
+ax_bottom_center_right.imshow(to_rgb_display(adapt_thresholded_mask_clean))
+ax_bottom_center_right.set_title(f'Adaptive Thresholding Mask\nIoU: {metric_results["A_iou"]:.2f}  Dice: {metric_results["A_dice"]:.2f}', fontsize=12, pad=10, color="white",)
+ax_bottom_center_right.axis("off")
 
-    ax_bottom_right.imshow(to_rgb_display(cluster_mask))
-    ax_bottom_right.set_title("K-Means Clustering Mask", fontsize=12, color="white",)
-    ax_bottom_right.axis("off")
+ax_bottom_right.imshow(to_rgb_display(cluster_mask))
+ax_bottom_right.set_title(f'K-Means Clustering Mask\nIoU: {metric_results["K_iou"]:.2f}  Dice: {metric_results["K_dice"]:.2f}', fontsize=12, pad=10, color="white",)
+ax_bottom_right.axis("off")
 
-    # Multi-line figure title
-    fig.suptitle(
-        "Image Segmentation and Masking Summary\n",
-        fontsize=18,
-        color="white",
-        y=0.95
-    )
+# Multi-line figure title
+fig.suptitle(
+    "Image Segmentation and Masking Summary\n",
+    fontsize=18,
+    color="white",
+    y=0.95
+)
 
-    # Adjust spacing
-    plt.tight_layout(rect=[0, 0, 1, 0.90])
+# Adjust spacing
+plt.tight_layout(rect=[0, 0, 1, 0.90])
 
-    plt.savefig(PLOTS_DIR / f"hw2_plot.png", facecolor=fig.get_facecolor())
-    plt.close()
+plt.savefig(PLOTS_DIR / f"hw2_plot.png", facecolor=fig.get_facecolor())
+plt.close()
+
+print("\n==================== Script Complete ====================\n")
