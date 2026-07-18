@@ -8,7 +8,6 @@ from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import v2
-import pathlib as PATH
 
 CURRENT_DIR = Path.cwd()
 DATA_DIR = CURRENT_DIR / "Fish"
@@ -18,8 +17,6 @@ VALIDATION_SIZE = 0.15 # Percent of data for validation
 TEST_SIZE = 0.15 # Percent of data for testing (Remaining data after validation and testing is for training [0.3])
 RANDOM_SEED = 42
 NUM_WORKERS = 2
-
-print("Part 2: Data Preprocessing and Augmentation")
 
 # Get classes of fish and the count of each class
 def index_dataset(data_dir: Path):
