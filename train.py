@@ -14,9 +14,7 @@ MODEL_SAVE_PATH = BASELINE_DIR / "baseline_model.pt"
 CURVES_SAVE_PATH = BASELINE_DIR / "baseline_training_curves.png"
 EPOCHS = 30
 LEARNING_RATE = 0.001
-DEVICE = torch.device("cuda" if torch.cuda.is_available()
-                       else "mps" if torch.backends.mps.is_available()
-                       else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Create the directories in the current directory if the do not exist
 RESULTS_DIR.mkdir(exist_ok=True)

@@ -16,7 +16,6 @@ BATCH_SIZE = 32
 VALIDATION_SIZE = 0.15 # Percent of data for validation
 TEST_SIZE = 0.15 # Percent of data for testing (Remaining data after validation and testing is for training [0.3])
 RANDOM_SEED = 42
-NUM_WORKERS = 2
 
 # Get classes of fish and the count of each class
 def index_dataset(data_dir: Path):
@@ -89,32 +88,37 @@ train_transform = v2.Compose([
     v2.ColorJitter(brightness=0.2, contrast=0.1),
     v2.ToImage(),
     v2.ToDtype(torch.float32, scale=True),
+    v2.Normalize(mean=[0.5,0.5,0.5], std=[0.5,0.5,0.5])
 ])
 
 eval_transform = v2.Compose([
     v2.Resize((IMG_SIZE, IMG_SIZE)),
     v2.ToImage(),
     v2.ToDtype(torch.float32, scale=True),
+    v2.Normalize(mean=[0.5,0.5,0.5], std=[0.5,0.5,0.5])
 ])
 
-def build_dataloaders(data_dir=DATA_DIR, batch_size=BATCH_SIZE, num_workers=NUM_WORKERS):
+def build_datasets(data_dir=DATA_DIR):
     filepaths, labels, class_to_index = index_dataset(data_dir)
-    (train_paths, train_labels), (validation_paths, validation_labels), (test_paths, test_labels) = stratified_split(filepaths, labels)
+    (train_filepaths, train_labels), (val_filepaths, val_labels), (test_filepaths, test_labels) = stratified_split(filepaths, labels)
 
-    train_dataset = FishDataset(train_paths, train_labels, transform=train_transform)
-    validation_dataset = FishDataset(validation_paths, validation_labels, transform=eval_transform)
-    test_dataset = FishDataset(test_paths, test_labels, transform=eval_transform)
+    train_dataset = FishDataset(train_filepaths, train_labels, transform=train_transform)
+    val_dataset = FishDataset(val_filepaths, val_labels, transform=eval_transform)
+    test_dataset = FishDataset(test_filepaths, test_labels, transform=eval_transform)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    validation_loader = DataLoader(validation_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    return train_dataset, val_dataset, test_dataset, class_to_index
 
-    return train_loader, validation_loader, test_loader, class_to_index
 
-if __name__ == "__main__":
-    train_loader, validation_loader, test_loader, class_to_index = build_dataloaders()
+def build_loaders_from_datasets(train_dataset, val_dataset, test_dataset, batch_size=BATCH_SIZE):
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    return train_loader, val_loader, test_loader
 
-    print(f"\nclass_to_index: {class_to_index}")
 
-    images, labels = next(iter(train_loader))
-    print(f"Sample train batch -> images: {images.shape}, labels: {labels.shape}")
+def build_dataloaders(data_dir=DATA_DIR, batch_size=BATCH_SIZE):
+    train_dataset, val_dataset, test_dataset, class_to_idx = build_datasets(data_dir)
+    train_loader, val_loader, test_loader = build_loaders_from_datasets(
+        train_dataset, val_dataset, test_dataset, batch_size=batch_size
+    )
+    return train_loader, val_loader, test_loader, class_to_idx
