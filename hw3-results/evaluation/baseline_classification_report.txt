@@ -1,0 +1,14 @@
+Baseline Model - Classification Report
+============================================================
+              precision    recall  f1-score   support
+
+        Bete     0.8387    0.8966    0.8667        29
+        Cray     1.0000    0.5833    0.7368        12
+     Discuss     0.9355    1.0000    0.9667        29
+        Gold     1.0000    1.0000    1.0000        31
+       Guppy     0.8889    1.0000    0.9412        24
+       Oscar     0.8889    0.8000    0.8421        20
+
+    accuracy                         0.9172       145
+   macro avg     0.9253    0.8800    0.8922       145
+weighted avg     0.9211    0.9172    0.9134       145

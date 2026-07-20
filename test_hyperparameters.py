@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import csv
 import itertools
@@ -15,6 +16,7 @@ TEST_DIR = RESULTS_DIR / "test"
 RESULTS_CSV = TEST_DIR / "test_results.csv"
 BEST_MODEL_PATH = TEST_DIR / "best_model.pt"
 BEST_CURVES_PATH = TEST_DIR / "best_model_training_curves.png"
+BEST_HISTORY_PATH = TEST_DIR / "best_history.json"
 LEARNING_RATES = [0.01, 0.001, 0.0001]
 DROPOUT_RATES = [0.3, 0.5]
 BATCH_SIZES = [32, 64]
@@ -153,6 +155,21 @@ def retrain_best_config(best_overall):
     print(f"\nOptimized model test set -> loss={test_loss:.4f} accuracy={test_accuracy:.4f}")
 
     plot_curves_named(history, BEST_CURVES_PATH)
+
+    with open(BEST_HISTORY_PATH, "w") as f:
+        json.dump({
+            "history": history,
+            "class_to_idx": class_to_index,
+            "test_loss": test_loss,
+            "test_acc": test_accuracy,
+            "config": {
+                "learning_rate": learning_rate,
+                "batch_size": batch_size,
+                "weight_decay": weight_decay,
+                "dropout": dropout,
+            },
+        }, f, indent=2)
+    print(f"Saved optimized model history to {BEST_HISTORY_PATH}")
 
     return model, history, class_to_index
 

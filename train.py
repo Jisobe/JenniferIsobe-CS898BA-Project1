@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import torch
 import torch.nn as nn
@@ -12,6 +13,7 @@ RESULTS_DIR = CURRENT_DIR / "hw3-results"
 BASELINE_DIR = RESULTS_DIR / "baseline"
 MODEL_SAVE_PATH = BASELINE_DIR / "baseline_model.pt"
 CURVES_SAVE_PATH = BASELINE_DIR / "baseline_training_curves.png"
+HISTORY_SAVE_PATH = BASELINE_DIR / "baseline_history.json"
 EPOCHS = 30
 LEARNING_RATE = 0.001
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -93,6 +95,18 @@ def train_baseline():
     print(f"\nBaseline test set -> loss={test_loss:.4f} accuracy={test_acc:.4f}")
 
     plot_curves(history)
+
+    with open(HISTORY_SAVE_PATH, "w") as f:
+        json.dump({
+            "history": history,
+            "class_to_index": class_to_index,
+            "test_loss": test_loss,
+            "test_accuracy": test_acc,
+            "config": {
+                "learning_rate": LEARNING_RATE,
+            },
+        }, f, indent=2)
+    print(f"Saved training history to {HISTORY_SAVE_PATH}")
 
     return model, history, class_to_index
 
