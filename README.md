@@ -62,6 +62,25 @@
       - [K-Means Iterations and Epsilon](#k-means-iterations-and-epsilon)
       - [K-Means Clusters](#k-means-clusters)
     - [HW2 Plot](#hw2-plot)
+  - [Homework 3](#homework-3)
+    - [HW3 Code Explanation](#hw3-code-explanation)
+      - [model.py](#modelpy)
+      - [preprocess.py](#preprocesspy)
+      - [train.py](#trainpy)
+      - [test\_hyperparameters.py](#test_hyperparameterspy)
+      - [evaluate.py](#evaluatepy)
+      - [Running HW3 Script](#running-hw3-script)
+    - [HW3 Qualitative Analysis](#hw3-qualitative-analysis)
+    - [HW3 Quantitative Comparison](#hw3-quantitative-comparison)
+      - [Hyperparameter Tuning Results](#hyperparameter-tuning-results)
+    - [Effect of Learning Rate](#effect-of-learning-rate)
+    - [Effect of Dropout](#effect-of-dropout)
+    - [Effect of Batch Size](#effect-of-batch-size)
+    - [Effect of Weight Decay](#effect-of-weight-decay)
+    - [Baseline Model — Classification Report](#baseline-model--classification-report)
+    - [Optimized Model — Classification Report](#optimized-model--classification-report)
+    - [Baseline vs. Optimized — Comparison](#baseline-vs-optimized--comparison)
+    - [HW3 Plots](#hw3-plots)
 
 This repository was completed as part of CS898BA and serves as an introduction to image analysis and processing using Python and OpenCV.
 
@@ -901,3 +920,753 @@ Cluster 0 when K=5 give the best IoU and Dice values.
 ### HW2 Plot
 
 ![Summary Plot](hw2-results-analysis/plots/hw2_plot.png)
+
+## Homework 3
+
+Files contained in the hw3-results directory are the files that were used for the discussions below. This directory contains subdirectories for the initial baseline, evaluation, and test.
+
+### HW3 Code Explanation
+
+#### model.py
+
+```python
+import torch.nn as nn
+
+class FishClassifier(nn.Module):
+    def __init__(self, num_classes: int, img_size: int = 224, dropout: float = 0.5):
+        super().__init__()
+
+        self.features = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=32, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+
+            nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+
+        reduced_size = img_size // (2 ** 3)
+        flattened_dim = 128 * reduced_size * reduced_size
+
+        self.classifier = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(flattened_dim, 256),
+            nn.ReLU(inplace=True),
+            nn.Dropout(p=dropout),
+            nn.Linear(256, num_classes),
+        )
+
+    def forward(self, x):
+        x = self.features(x)
+        x = self.classifier(x)
+        return x
+```
+
+This file outlines the structure of the model with 3 convolusional layers, each with ReLU for non-linearity and MaxPooling for downsizing applied. The images goes from 3 to 128 channels and is reduces to 28x28. The image array is then flattened into a linear vector which is then reduced to 256. ReLU is applied again for non linearity and dropout randomly deactivates some vector values to reduce overfitting. Then the vector is reduced further to match the number of given classes.
+
+#### preprocess.py
+
+```python
+def index_dataset(data_dir: Path):
+    class_names = sorted([dir.name for dir in data_dir.iterdir() if dir.is_dir()])
+    class_to_index = {name: index for index, name in enumerate(class_names)}
+
+    filepaths, labels = [], []
+    for class_name in class_names:
+        class_dir = data_dir / class_name
+        for img_path in class_dir.glob("*.jpg"):
+            filepaths.append(str(img_path))
+            labels.append(class_to_index[class_name])
+
+    if not filepaths:
+        raise RuntimeError(
+            f"No .jpg files found in {data_dir}. Check DATA_DIR path and image files"
+        )
+
+    print("Class distribution:")
+    counts = Counter(labels)
+    for name, index in class_to_index.items():
+        print(f"  {name:10s}: {counts.get(index, 0)}")
+
+    return filepaths, labels, class_to_index
+```
+
+Creates a list of filepaths and labels for each of the images in the Fish directory. The images are labeled based on the subdirectory they are in which are translated to indices for integration with PyTorch.
+
+```python
+def stratified_split(filepaths, labels, VALIDATION_SIZE=VALIDATION_SIZE, test_size=TEST_SIZE, seed=RANDOM_SEED):
+    trainval_paths, test_paths, trainval_labels, test_labels = train_test_split(
+        filepaths,
+        labels,
+        test_size=test_size,
+        stratify=labels,
+        random_state=seed,
+    )
+
+    validation_fraction_of_remainder = VALIDATION_SIZE / (1.0 - test_size)
+
+    train_paths, validation_paths, train_labels, validation_labels = train_test_split(
+        trainval_paths,
+        trainval_labels,
+        test_size=validation_fraction_of_remainder,
+        stratify=trainval_labels,
+        random_state=seed,
+    )
+
+    print(f"\nSplit sizes -> train: {len(train_paths)}, val: {len(validation_paths)}, "
+          f"test: {len(test_paths)}")
+
+    return (train_paths, train_labels), (validation_paths, validation_labels), (test_paths, test_labels)
+```
+
+Uses a two stage stratified split technique to divide the data into training, validation, and testing set using a 70/15/15 split. The statification ensures that classes with fewer or more images are not excessively grouped into one set (ie all of the cray images end up in training with no validation or testing).
+
+```python
+class FishDataset(Dataset):
+    def __init__(self, filepaths, labels, transform=None):
+        self.filepaths = filepaths
+        self.labels = labels
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.filepaths)
+
+    def __getitem__(self, index):
+        img = Image.open(self.filepaths[index]).convert("RGB")
+        label = self.labels[index]
+        if self.transform:
+            img = self.transform(img)
+        return img, label
+
+train_transform = v2.Compose([
+    v2.Resize((IMG_SIZE, IMG_SIZE)),
+    v2.RandomHorizontalFlip(p=0.5),
+    v2.RandomRotation(degrees=15),
+    v2.ColorJitter(brightness=0.2, contrast=0.1),
+    v2.ToImage(),
+    v2.ToDtype(torch.float32, scale=True),
+    v2.Normalize(mean=[0.5,0.5,0.5], std=[0.5,0.5,0.5])
+])
+
+eval_transform = v2.Compose([
+    v2.Resize((IMG_SIZE, IMG_SIZE)),
+    v2.ToImage(),
+    v2.ToDtype(torch.float32, scale=True),
+    v2.Normalize(mean=[0.5,0.5,0.5], std=[0.5,0.5,0.5])
+])
+```
+
+Establishes how datasets are loaded and transformed depending on if the data is training or validation/testing data. Training data get additional augementation that is not applied to validation or testing that could create inaccurate results.
+
+```python
+def build_datasets(data_dir=DATA_DIR):
+    filepaths, labels, class_to_index = index_dataset(data_dir)
+    (train_filepaths, train_labels), (val_filepaths, val_labels), (test_filepaths, test_labels) = stratified_split(filepaths, labels)
+
+    train_dataset = FishDataset(train_filepaths, train_labels, transform=train_transform)
+    val_dataset = FishDataset(val_filepaths, val_labels, transform=eval_transform)
+    test_dataset = FishDataset(test_filepaths, test_labels, transform=eval_transform)
+
+    return train_dataset, val_dataset, test_dataset, class_to_index
+```
+
+Instantiates the acutal datasets for each of the training, validation, and testing datasets.
+
+```python
+def build_loaders_from_datasets(train_dataset, val_dataset, test_dataset, batch_size=BATCH_SIZE):
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    return train_loader, val_loader, test_loader
+```
+
+Loads data using DataLoader for PyTorches data handling and shuffling for training, validation, and tesing loops. The shuffle on the training set is intended to keep the model from training based on patterns shown when the images are in the same specific order for each training run.
+
+```python
+def build_dataloaders(data_dir=DATA_DIR, batch_size=BATCH_SIZE):
+    train_dataset, val_dataset, test_dataset, class_to_idx = build_datasets(data_dir)
+    train_loader, val_loader, test_loader = build_loaders_from_datasets(
+        train_dataset, val_dataset, test_dataset, batch_size=batch_size
+    )
+    return train_loader, val_loader, test_loader, class_to_idx
+```
+
+Combines the above functions for convience. This is used in the train.py script while the separate functions are using in the hyperparameter script to try to minimize the work done with each change in hyperparameter by not recalling build_dataset for each run and only calling build_loaders_from_datasets.
+
+#### train.py
+
+```python
+def run_epoch(model, loader, criterion, optimizer=None):
+    is_train = optimizer is not None
+    model.train() if is_train else model.eval()
+
+    running_loss = 0.0
+    correct = 0
+    total = 0
+
+    context = torch.enable_grad() if is_train else torch.no_grad()
+    with context:
+        for images, labels in loader:
+            images, labels = images.to(DEVICE), labels.to(DEVICE)
+
+            if is_train:
+                optimizer.zero_grad()
+
+            logits = model(images)
+            loss = criterion(logits, labels)
+
+            if is_train:
+                loss.backward()
+                optimizer.step()
+
+            running_loss += loss.item() * images.size(0)
+            predications = torch.argmax(logits, dim=1)
+            correct += (predications == labels).sum().item()
+            total += labels.size(0)
+
+    avg_loss = running_loss / total
+    accuracy = correct / total
+    return avg_loss, accuracy
+```
+
+Completes a run through a given dataset. If the dataset is a training set, the optimizer and gradient are enable, otherwise they are not. Images are processed through the model. Backwards passes and optimizer steps are applied only to training sets. Losses, predictions, correct guesses, and running total are accumulated and then average loss and accuracy are calculated
+
+```python
+def train_baseline():
+    print(f"Using device: {DEVICE}")
+
+    train_loader, validation_loader, test_loader, class_to_index = build_dataloaders()
+    num_classes = len(class_to_index)
+    print(f"Classes ({num_classes}): {class_to_index}")
+
+    model = FishClassifier(num_classes=num_classes).to(DEVICE)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+    history = {
+        "train_loss": [], "train_accuracy": [],
+        "validation_loss": [], "validation_accuracy": [],
+    }
+
+    best_validation_loss = float("inf")
+
+    for epoch in range(1, EPOCHS + 1):
+        train_loss, train_accuracy = run_epoch(model, train_loader, criterion, optimizer)
+        validation_loss, validation_accuracy = run_epoch(model, validation_loader, criterion, optimizer=None)
+
+        history["train_loss"].append(train_loss)
+        history["train_accuracy"].append(train_accuracy)
+        history["validation_loss"].append(validation_loss)
+        history["validation_accuracy"].append(validation_accuracy)
+
+        print(f"Epoch {epoch:2d}/{EPOCHS} | "
+              f"train_loss={train_loss:.4f} train_accuracy={train_accuracy:.4f} | "
+              f"validation_loss={validation_loss:.4f} validation_accuracy={validation_accuracy:.4f}")
+
+        if validation_loss < best_validation_loss:
+            best_validation_loss = validation_loss
+            torch.save(model.state_dict(), MODEL_SAVE_PATH)
+            print(f"  -> new best validation_loss, saved weights to {MODEL_SAVE_PATH}")
+
+    model.load_state_dict(torch.load(MODEL_SAVE_PATH))
+    test_loss, test_acc = run_epoch(model, test_loader, criterion, optimizer=None)
+    print(f"\nBaseline test set -> loss={test_loss:.4f} accuracy={test_acc:.4f}")
+
+    plot_curves(history)
+
+    with open(HISTORY_SAVE_PATH, "w") as f:
+        json.dump({
+            "history": history,
+            "class_to_index": class_to_index,
+            "test_loss": test_loss,
+            "test_accuracy": test_acc,
+            "config": {
+                "learning_rate": LEARNING_RATE,
+            },
+        }, f, indent=2)
+    print(f"Saved training history to {HISTORY_SAVE_PATH}")
+
+    return model, history, class_to_index
+```
+
+This is the main orchestraction function for the baseline model. It gets the dataloaders, model, criterion, and optimizer which are then used to run through the set number of epochs. Accuracy and losses are saved in the history dictionary for auditing and anlysis and the "best" model is saved based on the run with the lowest validation loss. The contents of the history dictionary are then saved as a JSON file. CrossEntropyLoss applies softmax internally, so to avoid duplication, it is not applied elsewhere in the script.
+
+```python
+def plot_curves(history):
+    epochs_range = range(1, len(history["train_loss"]) + 1)
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+
+    axes[0].plot(epochs_range, history["train_loss"], label="Train Loss")
+    axes[0].plot(epochs_range, history["validation_loss"], label="Validation Loss")
+    axes[0].set_xlabel("Epoch")
+    axes[0].set_ylabel("Loss")
+    axes[0].set_title("Baseline: Loss vs. Epoch")
+    axes[0].legend()
+
+    axes[1].plot(epochs_range, history["train_accuracy"], label="Train Accuracy")
+    axes[1].plot(epochs_range, history["validation_accuracy"], label="Validation Accuracy")
+    axes[1].set_xlabel("Epoch")
+    axes[1].set_ylabel("Accuracy")
+    axes[1].set_title("Baseline: Accuracy vs. Epoch")
+    axes[1].legend()
+
+    plt.tight_layout()
+    plt.savefig(CURVES_SAVE_PATH, dpi=150)
+    print(f"Saved training curves to {CURVES_SAVE_PATH}")
+```
+
+This create a graph plot for accuracy and loss accross the epochs, overlaying training and validation on the same graph for comparison.
+
+#### test_hyperparameters.py
+
+```python
+def train_one_config(train_dataset, validation_dataset, test_dataset, class_to_index, learning_rate, batch_size, weight_decay, dropout, num_epochs):
+    train_loader, validation_loader, test_loader = build_loaders_from_datasets(
+        train_dataset, validation_dataset, test_dataset, batch_size=batch_size
+    )
+    num_classes = len(class_to_index)
+
+    model = FishClassifier(num_classes=num_classes, dropout=dropout).to(DEVICE)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+
+    best_validation_loss = float("inf")
+    best_validation_accuracy = 0.0
+    history = {"train_loss": [], "train_accuracy": [], "validation_loss": [], "validation_accuracy": []}
+
+    for epoch in range(1, num_epochs + 1):
+        train_loss, train_accuracy = run_epoch(model, train_loader, criterion, optimizer)
+        validation_loss, validation_accuracy = run_epoch(model, validation_loader, criterion, optimizer=None)
+
+        history["train_loss"].append(train_loss)
+        history["train_accuracy"].append(train_accuracy)
+        history["validation_loss"].append(validation_loss)
+        history["validation_accuracy"].append(validation_accuracy)
+
+        if validation_loss < best_validation_loss:
+            best_validation_loss = validation_loss
+            best_validation_accuracy = validation_accuracy
+
+    return best_validation_loss, best_validation_accuracy, history
+```
+
+Takes a specific combination of hyperparameters and executes a training loop using them with the give number of epochs. Otherwise this is similar to the train_baseline function
+
+```python
+def run_grid_search():
+    combos = list(itertools.product(LEARNING_RATES, BATCH_SIZES, WEIGHT_DECAYS, DROPOUT_RATES))
+    print(f"Running grid search over {len(combos)} configurations with ({TUNE_EPOCHS} epochs each)\n")
+
+    train_dataset, val_dataset, test_dataset, class_to_index = build_datasets()
+
+    results = []
+    best_overall = {"validation_loss": float("inf")}
+
+    for i, (learning_rate, batch_size, weight_decay, dropout) in enumerate(combos, start=1):
+        print(f"[{i}/{len(combos)}] learning_rate={learning_rate} batch_size={batch_size} weight_decay={weight_decay} dropout={dropout}")
+
+        validation_loss, validation_accuracy, history = train_one_config(
+            train_dataset, val_dataset, test_dataset, class_to_index,
+            learning_rate, batch_size, weight_decay, dropout, num_epochs=TUNE_EPOCHS
+        )
+
+        print(f"  -> best_validation_loss={validation_loss:.4f} best_validation_accuracy={validation_accuracy:.4f}\n")
+
+        result = {
+            "learning_rate": learning_rate,
+            "batch_size": batch_size,
+            "weight_decay": weight_decay,
+            "dropout": dropout,
+            "best_validation_loss": validation_loss,
+            "best_validation_accuracy": validation_accuracy,
+        }
+        results.append(result)
+
+        if validation_loss < best_overall["validation_loss"]:
+            best_overall = {**result, "validation_loss": validation_loss}
+
+    with open(RESULTS_CSV, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(results[0].keys()))
+        writer.writeheader()
+        writer.writerows(results)
+    print(f"Saved full grid search results to {RESULTS_CSV}")
+
+    print(f"\nBest configuration:")
+    print(f"  learning_rate = {best_overall['learning_rate']}")
+    print(f"  batch_size = {best_overall['batch_size']}")
+    print(f"  weight_decay = {best_overall['weight_decay']}")
+    print(f"  validation_loss = {best_overall['best_validation_loss']:.4f}")
+    print(f"  validation_accuracy = {best_overall['best_validation_accuracy']:.4f}")
+
+    return best_overall, results
+```
+
+Given the hyperparameter values that are to be tested, this creates the necessary combinations and send each to be run through the training cycle. Each result is saved with the parameters, validation loss, and validation accuracy. The best combination is saved according to teh validation loss. The results are then saved to a csv file.
+
+```python
+def retrain_best_config(best_overall):
+    learning_rate = best_overall["learning_rate"]
+    batch_size = best_overall["batch_size"]
+    weight_decay = best_overall["weight_decay"]
+    dropout = best_overall["dropout"]
+
+    print(f"\nRetraining best config for {FINAL_EPOCHS} epochs "
+          f"(learning_rate={learning_rate}, batch_size={batch_size}, weight_decay={weight_decay})")
+
+    train_loader, validation_loader, test_loader, class_to_index= build_dataloaders(
+        batch_size=batch_size
+    )
+    num_classes = len(class_to_index)
+
+    model = FishClassifier(num_classes=num_classes, dropout=dropout).to(DEVICE)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    epochs_without_improvement = 0
+    best_validation_loss = float("inf")
+    history = {"train_loss": [], "train_accuracy": [], "validation_loss": [], "validation_accuracy": []}
+
+    for epoch in range(1, FINAL_EPOCHS + 1):
+        train_loss, train_accuracy = run_epoch(model, train_loader, criterion, optimizer)
+        validation_loss, validation_accuracy = run_epoch(model, validation_loader, criterion, optimizer=None)
+
+        history["train_loss"].append(train_loss)
+        history["train_accuracy"].append(train_accuracy)
+        history["validation_loss"].append(validation_loss)
+        history["validation_accuracy"].append(validation_accuracy)
+
+        print(f"Epoch {epoch:2d}/{FINAL_EPOCHS} | "
+              f"train_loss={train_loss:.4f} train_accuracy={train_accuracy:.4f} | "
+              f"validation_loss={validation_loss:.4f} validation_accuracy={validation_accuracy:.4f}")
+
+        if validation_loss < best_validation_loss:
+            best_validation_loss = validation_loss
+            epochs_without_improvement = 0
+            torch.save(model.state_dict(), BEST_MODEL_PATH)
+            print(f"  -> new best validation_loss, saved weights to {BEST_MODEL_PATH}")
+        else:
+            epochs_without_improvement += 1
+            if epochs_without_improvement >= PATIENCE:
+                print(f"\nEarly stopping: val_loss hasn't improved in {PATIENCE} epochs (stopped at epoch {epoch}).")
+                break
+
+    model.load_state_dict(torch.load(BEST_MODEL_PATH))
+    test_loss, test_accuracy = run_epoch(model, test_loader, criterion, optimizer=None)
+    print(f"\nOptimized model test set -> loss={test_loss:.4f} accuracy={test_accuracy:.4f}")
+
+    plot_curves_named(history, BEST_CURVES_PATH)
+
+    with open(BEST_HISTORY_PATH, "w") as f:
+        json.dump({
+            "history": history,
+            "class_to_idx": class_to_index,
+            "test_loss": test_loss,
+            "test_acc": test_accuracy,
+            "config": {
+                "learning_rate": learning_rate,
+                "batch_size": batch_size,
+                "weight_decay": weight_decay,
+                "dropout": dropout,
+            },
+        }, f, indent=2)
+    print(f"Saved optimized model history to {BEST_HISTORY_PATH}")
+
+    return model, history, class_to_index
+```
+
+This is simialar to the train.py script but is for the hyperparameter combination that is determined to be the best from the run_grid_search function. The results are saved to the test directory.
+
+#### evaluate.py
+
+```python
+def load_history(path):
+    with open(path) as f:
+        return json.load(f)
+```
+
+Helper function to load previously save json data
+
+```python
+def get_predictions(model, loader):
+    model.eval()
+    all_labels, all_predictions = [], []
+    with torch.no_grad():
+        for images, labels in loader:
+            images = images.to(DEVICE)
+            logits = model(images)
+            predictions = torch.argmax(logits, dim=1).cpu().numpy()
+            all_predictions.extend(predictions)
+            all_labels.extend(labels.numpy())
+    return np.array(all_labels), np.array(all_predictions)
+```
+
+Gets predicitons from the trained model in eval mode
+
+```python
+def build_model_from_checkpoint(model_path, num_classes):
+    model = FishClassifier(num_classes=num_classes).to(DEVICE)
+    model.load_state_dict(torch.load(model_path, map_location=DEVICE))
+    return model
+```
+
+Builds the FishClassifier using the weights from the saved pretrained models
+
+```python
+def report_and_save(y_true, y_pred, class_names, save_path, model_label):
+    report_str = classification_report(y_true, y_pred, target_names=class_names,digits=4, zero_division=0)
+    print(f"\n{'=' * 60}\n{model_label} - Classification Report\n{'=' * 60}")
+    print(report_str)
+
+    with open(save_path, "w") as f:
+        f.write(f"{model_label} - Classification Report\n")
+        f.write("=" * 60 + "\n")
+        f.write(report_str)
+    print(f"Saved to {save_path}")
+
+    return report_str
+```
+
+Gets the precision, recall, and F-1 scores for each class
+
+```python
+def build_comparison_grid(baseline_hist, optimized_hist, y_true_opt, y_pred_opt,class_names):
+    fig = plt.figure(figsize=(18, 8))
+    gs = gridspec.GridSpec(2, 3, width_ratios=[1, 1, 1.3])
+
+    ax1 = fig.add_subplot(gs[0, 0])
+    epochs_b = range(1, len(baseline_hist["train_loss"]) + 1)
+    ax1.plot(epochs_b, baseline_hist["train_loss"], label="Train Loss")
+    ax1.plot(epochs_b, baseline_hist["validation_loss"], label="Validation Loss")
+    ax1.set_title("Baseline: Loss")
+    ax1.set_xlabel("Epoch")
+    ax1.legend()
+
+    ax2 = fig.add_subplot(gs[1, 0])
+    ax2.plot(epochs_b, baseline_hist["train_accuracy"], label="Train Accuracy")
+    ax2.plot(epochs_b, baseline_hist["validation_accuracy"], label="Validation Accuracy")
+    ax2.set_title("Baseline: Accuracy")
+    ax2.set_xlabel("Epoch")
+    ax2.legend()
+
+    ax3 = fig.add_subplot(gs[0, 1])
+    epochs_o = range(1, len(optimized_hist["train_loss"]) + 1)
+    ax3.plot(epochs_o, optimized_hist["train_loss"], label="Train Loss")
+    ax3.plot(epochs_o, optimized_hist["validation_loss"], label="Validation Loss")
+    ax3.set_title("Optimized: Loss")
+    ax3.set_xlabel("Epoch")
+    ax3.legend()
+
+    ax4 = fig.add_subplot(gs[1, 1])
+    ax4.plot(epochs_o, optimized_hist["train_accuracy"], label="Train Accuracy")
+    ax4.plot(epochs_o, optimized_hist["validation_accuracy"], label="Validation Accuracy")
+    ax4.set_title("Optimized: Accuracy")
+    ax4.set_xlabel("Epoch")
+    ax4.legend()
+
+    ax5 = fig.add_subplot(gs[:, 2])
+    cm = confusion_matrix(y_true_opt, y_pred_opt)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=class_names)
+    disp.plot(ax=ax5, cmap="Blues", colorbar=False, xticks_rotation=45)
+    ax5.set_title("Optimized Model: Test Confusion Matrix")
+
+    plt.tight_layout()
+    plt.savefig(COMPARISON_GRID_PATH, dpi=150)
+    print(f"\nSaved comparison grid to {COMPARISON_GRID_PATH}")
+```
+
+Builds the comparision images with the loss and accuracy plots for training and validation for the baseline and best models as well as the confusion matrix
+
+```python
+def main():
+    baseline_data = load_history(BASELINE_HISTORY_PATH)
+    optimized_data = load_history(OPTIMIZED_HISTORY_PATH)
+
+    class_to_index = baseline_data["class_to_index"]
+    num_classes = len(class_to_index)
+    class_names = [name for name, index in sorted(class_to_index.items(), key=lambda kv: kv[1])]
+
+    _, _, test_loader, _ = build_dataloaders()
+
+    baseline_model = build_model_from_checkpoint(BASELINE_MODEL_PATH, num_classes)
+    optimized_model = build_model_from_checkpoint(OPTIMIZED_MODEL_PATH, num_classes)
+
+    y_true_base, y_predict_base = get_predictions(baseline_model, test_loader)
+    y_true_optimized, y_predict_optimized = get_predictions(optimized_model, test_loader)
+
+    report_and_save(y_true_base, y_predict_base, class_names,
+                     BASELINE_REPORT_PATH, "Baseline Model")
+    report_and_save(y_true_optimized, y_predict_optimized, class_names,
+                     OPTIMIZED_REPORT_PATH, "Optimized Model")
+
+    print(f"\nBaseline - test_loss={baseline_data['test_loss']:.4f} "
+          f"test_accuracy={baseline_data['test_accuracy']:.4f}")
+    print(f"Optimized - test_loss={optimized_data['test_loss']:.4f} "
+          f"test_accuracy={optimized_data['test_acc']:.4f} (config: {optimized_data['config']})")
+
+    build_comparison_grid(baseline_data["history"], optimized_data["history"], y_true_optimized, y_predict_optimized, class_names)
+```
+
+Coordinates the evaluation using the functions defined above.
+
+#### Running HW3 Script
+
+Open a terminal and clone to repository to your local machine: `git clone https://github.com/Jisobe/JenniferIsobe-CS898BA-Project1.git`
+
+Change directories into the project: `cd JenniferIsobe-CS898BA-Project1`
+
+Run the following in the terminal to run the training script: `uv run train.py`
+
+Run the following in the terminal to run the tuning script: `uv run text_hyperparameters.py`
+
+Run the following in the terminal to run the training script: `uv run evaluate.py`
+
+Run the following in the terminal to run a script and write the terminal output to a file: `uv run [script_name] > output.txt`
+
+***Note: Re-running the program will override the files in the results directory. If you want to save those files, rename the results directory***
+
+### HW3 Qualitative Analysis
+
+Data Augmentation: Augmentation techniques were applied to the training sets to add increased variability but not to validation or testing to ensure testing results are not adversely affected. When validation and testing are run, we want to ensure the original images are used rather than altered images that could skew the results. Looking at the training loss and accuracy plots for the baseline and optimized runs, both trend fairly smoothly in the expected directions and without an overly or under aggressive slope. This would indicate that the data augmentation do not adversely affect the training pipeline.
+
+Hyperparameters: Hyperparameters were tested using a grid search, exhaustively testing each combination of selected hyperparameters. Selected hyperparameters and their values can be seen in the [Hyperparameter Tuning Results](#hyperparameter-tuning-results) section below. Overall a batch size of 64 slightly improved the validation accuracy and loss metrics with dropout behaving similarly, decreasing the loss while increasing the accuracy. These changes had a decent effect but did not create a significant change. For the weight decay, both the .001 and .0001 values improved the performance according to the validation loss and accuracy when compared to the control value of 0. In comparison to each other however, they show almost no difference. The parameter that shows the biggest impact is the learning rate. Learning rate values of .001 and .0001 resulted in average validation accuracy above 80% with .001 resulting in ~85% accuracy with an average loss of 64%. When the learning rate got to .01 however, accuracy plummeted and loss increased significantly.
+
+One of the more interesting observations is that when looking at the results of the test runs and the comparison charts, the optimized version actually did worse than the baseline version. While the best models test loss was 36% with a 90% accuracy, baseline had an accuracy of 91% with a loss of 30%. This goes directly against what it seems like the trend should be. This result may be from the limited validation data and/or from the model overfitting to the provided validation data. To improve results future tests should include using K-folds to vary the training and validation data to decrease the chance of overfitting. Even though the lowest validation loss was chosen from the tested combinations, it is likely that validation loss alone is not a sufficient parameter to determine the best values for the hyperparameters. In observing the confusion matrix, Bete, Discuss, Gold, and Guppy did well within the models predictions. Cray and oscar both did poorly with cray performing the worst. Given that Bete, Discuss, Gold, and Guppy had the highest volume of images and Cray and Oscar had the lowest, these result make sense. Overall there was less data for the model to train and validate against for the Cray and Oscar classes. In fact, the lowest performer, Cray, had the lowest images available. Additionally, it does still appear that overfitting is an issue as the training and validation loss and accuracy continue to diverge in the later epochs. The validation loss and accuracy also plateau quickly with the loss much higher than acceptable especially on the optimized version. The validation loss and accuracy both display a saw pattern as well. Further tuning and perhaps additional image preprocessing could help with this issue. Additionally an increased number of images would likely help.
+
+### HW3 Quantitative Comparison
+
+#### Hyperparameter Tuning Results
+
+LEARNING_RATES = [0.01, 0.001, 0.0001]
+DROPOUT_RATES = [0.3, 0.5]
+BATCH_SIZES = [32, 64]
+WEIGHT_DECAYS = [0.0, 1e-4, 1e-3]
+
+| # | LR | Batch | Weight Decay | Dropout | Val Loss | Val Acc |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 0.01 | 32 | 0.0 | 0.3 | 1.7509 | 0.2138 |
+| 2 | 0.01 | 32 | 0.0 | 0.5 | 1.7509 | 0.2138 |
+| 3 | 0.01 | 32 | 0.0001 | 0.3 | 1.7509 | 0.2138 |
+| 4 | 0.01 | 32 | 0.0001 | 0.5 | 0.8481 | 0.7241 |
+| 5 | 0.01 | 32 | 0.001 | 0.3 | 0.7325 | 0.7241 |
+| 6 | 0.01 | 32 | 0.001 | 0.5 | 1.3890 | 0.4759 |
+| 7 | 0.01 | 64 | 0.0 | 0.3 | 1.7508 | 0.2138 |
+| 8 | 0.01 | 64 | 0.0 | 0.5 | 0.6074 | 0.7931 |
+| 9 | 0.01 | 64 | 0.0001 | 0.3 | 0.6265 | 0.8000 |
+| 10 | 0.01 | 64 | 0.0001 | 0.5 | 0.7572 | 0.7241 |
+| 11 | 0.01 | 64 | 0.001 | 0.3 | 0.7267 | 0.6897 |
+| 12 | 0.01 | 64 | 0.001 | 0.5 | 0.7216 | 0.7310 |
+| 13 | 0.001 | 32 | 0.0 | 0.3 | 0.4900 | 0.8345 |
+| 14 | 0.001 | 32 | 0.0 | 0.5 | 0.5274 | 0.8414 |
+| 15 | 0.001 | 32 | 0.0001 | 0.3 | 0.5019 | 0.8552 |
+| 16 | 0.001 | 32 | 0.0001 | 0.5 | 0.4877 | 0.8621 |
+| 17 | 0.001 | 32 | 0.001 | 0.3 | 0.4830 | 0.8483 |
+| 18 | 0.001 | 32 | 0.001 | 0.5 | 0.4961 | 0.8552 |
+| **19** | **0.001** | **64** | **0.0** | **0.3** | **0.4339** | **0.8483** |
+| 20 | 0.001 | 64 | 0.0 | 0.5 | 0.4618 | 0.8345 |
+| 21 | 0.001 | 64 | 0.0001 | 0.3 | 0.4624 | 0.8552 |
+| 22 | 0.001 | 64 | 0.0001 | 0.5 | 0.4998 | 0.8621 |
+| 23 | 0.001 | 64 | 0.001 | 0.3 | 0.5110 | 0.8276 |
+| 24 | 0.001 | 64 | 0.001 | 0.5 | 0.5034 | 0.8276 |
+| 25 | 0.0001 | 32 | 0.0 | 0.3 | 0.5721 | 0.7931 |
+| 26 | 0.0001 | 32 | 0.0 | 0.5 | 0.5146 | 0.8621 |
+| 27 | 0.0001 | 32 | 0.0001 | 0.3 | 0.5430 | 0.8000 |
+| 28 | 0.0001 | 32 | 0.0001 | 0.5 | 0.5025 | 0.8138 |
+| 29 | 0.0001 | 32 | 0.001 | 0.3 | 0.5245 | 0.7931 |
+| 30 | 0.0001 | 32 | 0.001 | 0.5 | 0.5473 | 0.8000 |
+| 31 | 0.0001 | 64 | 0.0 | 0.3 | 0.6240 | 0.8000 |
+| 32 | 0.0001 | 64 | 0.0 | 0.5 | 0.5565 | 0.8069 |
+| 33 | 0.0001 | 64 | 0.0001 | 0.3 | 0.5345 | 0.8000 |
+| 34 | 0.0001 | 64 | 0.0001 | 0.5 | 0.5668 | 0.8138 |
+| 35 | 0.0001 | 64 | 0.001 | 0.3 | 0.5603 | 0.7586 |
+| 36 | 0.0001 | 64 | 0.001 | 0.5 | 0.5738 | 0.7931 |
+
+### Effect of Learning Rate
+
+***(averaged across all batch size / weight decay / dropout combinations, 12 configs each)***
+
+| Learning Rate | Avg Val Loss | Avg Val Accuracy |
+| --- | --- | --- |
+| 0.01 | 1.1177 | 0.5431 |
+| **0.001** | **0.4882** | **0.8460** |
+| 0.0001 | 0.5517 | 0.8029 |
+
+### Effect of Dropout
+
+***(averaged across all LR / batch size / weight decay combinations, 18 configs each)***
+
+| Dropout | Avg Val Loss | Avg Val Accuracy |
+| --- | --- | --- |
+| 0.3 | 0.7544 | 0.7038 |
+| **0.5** | **0.6840** | **0.7575** |
+
+### Effect of Batch Size
+
+***(averaged across all LR / weight decay / dropout combinations, 18 configs each)***
+
+| Batch Size | Avg Val Loss | Avg Val Accuracy |
+| --- | --- | --- |
+| 32 | 0.8007 | 0.6958 |
+| **64** | **0.6377** | **0.7655** |
+
+### Effect of Weight Decay
+
+***(averaged across all LR / batch size / dropout combinations, 12 configs each)***
+
+| Weight Decay | Avg Val Loss | Avg Val Accuracy |
+| --- | --- | --- |
+| 0.0 | 0.8367 | 0.6713 |
+| 0.0001 | 0.6734 | 0.7604 |
+| **0.001** | **0.6474** | **0.7604** |
+
+### Baseline Model — Classification Report
+
+| Class | Precision | Recall | F1-Score | Support |
+| --- | --- | --- | --- | --- |
+| Bete | 0.8387 | 0.8966 | 0.8667 | 29 |
+| Cray | 1.0000 | 0.5833 | 0.7368 | 12 |
+| Discuss | 0.9355 | 1.0000 | 0.9667 | 29 |
+| Gold | 1.0000 | 1.0000 | 1.0000 | 31 |
+| Guppy | 0.8889 | 1.0000 | 0.9412 | 24 |
+| Oscar | 0.8889 | 0.8000 | 0.8421 | 20 |
+| **Accuracy** | | | **0.9172** | 145 |
+| **Macro avg** | 0.9253 | 0.8800 | 0.8922 | 145 |
+| **Weighted avg** | 0.9211 | 0.9172 | 0.9134 | 145 |
+
+### Optimized Model — Classification Report
+
+| Class | Precision | Recall | F1-Score | Support |
+| --- | --- | --- | --- | --- |
+| Bete | 0.8182 | 0.9310 | 0.8710 | 29 |
+| Cray | 0.8000 | 0.6667 | 0.7273 | 12 |
+| Discuss | 1.0000 | 0.9655 | 0.9825 | 29 |
+| Gold | 0.9677 | 0.9677 | 0.9677 | 31 |
+| Guppy | 0.8276 | 1.0000 | 0.9057 | 24 |
+| Oscar | 1.0000 | 0.7000 | 0.8235 | 20 |
+| **Accuracy** | | | **0.9034** | 145 |
+| **Macro avg** | 0.9023 | 0.8718 | 0.8796 | 145 |
+| **Weighted avg** | 0.9117 | 0.9034 | 0.9013 | 145 |
+
+### Baseline vs. Optimized — Comparison
+
+| Class | Precision Delta | Recall Delta | F1 Delta | Baseline F1 | Optimized F1 |
+| --- | --- | --- |---|---|---|
+| Bete | -0.0205 | +0.0344 | +0.0043 | 0.8667 | 0.8710 |
+| Cray | -0.2000 | +0.0834 | -0.0095 | 0.7368 | 0.7273 |
+| Discuss | +0.0645 | -0.0345 | +0.0158 | 0.9667 | 0.9825 |
+| Gold | -0.0323 | -0.0323 | -0.0323 | 1.0000 | 0.9677 |
+| Guppy | -0.0613 | 0.0000 | -0.0355 | 0.9412 | 0.9057 |
+| Oscar | +0.1111 | -0.1000 | -0.0186 | 0.8421 | 0.8235 |
+| **Accuracy** | | | **-0.0138** | **0.9172** | **0.9034** |
+| **Macro avg** | -0.0230 | -0.0082 | -0.0126 | 0.8922 | 0.8796 |
+| **Weighted avg** | -0.0094 | -0.0138 | -0.0121 | 0.9134 | 0.9013 |
+
+*Delta = Optimized − Baseline. Negative values indicate the optimized model underperformed the baseline on that metric.*
+
+### HW3 Plots
+
+![Comparison plots and Confusion Matrix](hw3-results/evaluation/comparison_grid.png)
